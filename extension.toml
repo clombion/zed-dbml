@@ -10,16 +10,11 @@ repository = "https://github.com/clombion/zed-dbml"
 
 # Tree-sitter grammar
 [grammars.dbml]
+repository = "https://github.com/clombion/zed-dbml"
 path = "languages/dbml"
+rev = "6199311eb6cc7af11b28a0766d9f64cb04452fd4"
 
 # language server
 [language_servers.dbml-language-server]
 name = "dbml-language-server"
 language = "DBML"
-
-# permissions required by the Rust orchestrator
-[[capabilities]]
-kind = "network"
-
-[[capabilities]]
-kind = "process:exec"
