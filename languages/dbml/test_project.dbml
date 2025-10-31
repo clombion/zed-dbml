@@ -1,0 +1,4 @@
+Project test {
+  database_type: 'SQLite'
+  Note: 'simple note'
+}

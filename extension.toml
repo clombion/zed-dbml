@@ -1,0 +1,25 @@
+# extension.toml
+
+id = "dbml"
+name = "DBML"
+version = "0.1.0"
+schema_version = 1
+authors = ["clombion"]
+description = "Full-featured DBML language support with syntax highlighting and LSP."
+repository = "https://github.com/clombion/zed-dbml"
+
+# Tree-sitter grammar
+[grammars.dbml]
+path = "languages/dbml"
+
+# language server
+[language_servers.dbml-language-server]
+name = "dbml-language-server"
+language = "DBML"
+
+# permissions required by the Rust orchestrator
+[[capabilities]]
+kind = "network"
+
+[[capabilities]]
+kind = "process:exec"

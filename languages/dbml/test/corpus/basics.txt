@@ -1,0 +1,56 @@
+==================
+Simple Table
+==================
+
+Table users {}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body)))
+
+==================
+Table with a column
+==================
+
+Table users {
+  id int [pk]
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_keyword))))))
+
+==================
+Comment
+==================
+
+// This is a comment
+
+---
+
+(source_file (comment))
+
+==================
+Short Ref
+==================
+Ref: posts.user_id > users.id
+---
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier))))
