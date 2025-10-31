@@ -36,7 +36,6 @@
 ; Literals
 (single_quote_string) @string
 (triple_quote_string) @string
-(_quoted_string) @string
 (expression_literal) @string.special
 (number_literal) @number
 (hex_color) @string
