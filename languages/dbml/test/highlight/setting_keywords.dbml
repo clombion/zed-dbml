@@ -1,0 +1,17 @@
+Table users {
+  id int [pk]
+//        ^ keyword
+  email varchar [unique]
+//               ^ keyword
+  name varchar [not null]
+//              ^ keyword
+  count int [increment]
+//           ^ keyword
+  ref_id int [null]
+//            ^ keyword
+}
+
+Table orders {
+  id int [primary key]
+//        ^ keyword
+}

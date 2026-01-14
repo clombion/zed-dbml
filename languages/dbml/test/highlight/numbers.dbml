@@ -1,0 +1,16 @@
+Table products {
+  price decimal(10, 2)
+//              ^ number
+//                  ^ number
+  discount int [default: -5]
+//                       ^ number
+  rating decimal [default: 4.5]
+//                         ^ number
+}
+
+Table limits {
+  max_count int [default: 100]
+//                        ^ number
+  min_value decimal [default: -99.99]
+//                            ^ number
+}

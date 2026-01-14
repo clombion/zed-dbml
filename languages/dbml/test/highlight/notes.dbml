@@ -1,0 +1,22 @@
+Table users {
+  id int
+
+  Note: 'This is a table note'
+// ^ keyword
+//      ^ comment.doc
+}
+
+Project myproject {
+  Note: 'Project description'
+// ^ keyword
+//      ^ comment.doc
+}
+
+Table orders {
+  Note: '''
+// ^ keyword
+//      ^ comment.doc
+    Multi-line note
+    with multiple lines
+  '''
+}

@@ -1,0 +1,15 @@
+Table users {
+  id int [pk]
+//       ^ punctuation
+//          ^ punctuation
+}
+
+Ref: users.id > posts.user_id
+//        ^ punctuation
+
+Table products {
+  price decimal(10, 2)
+//             ^ punctuation
+//                ^ punctuation
+//                   ^ punctuation
+}

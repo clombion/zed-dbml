@@ -1,0 +1,19 @@
+Project myproject {
+//      ^ type.definition
+  database_type: 'PostgreSQL'
+}
+
+Table users {
+//    ^ type.definition
+  id int
+}
+
+Enum status {
+//   ^ type.definition
+  active
+}
+
+TableGroup ecommerce {
+//         ^ type.definition
+  users
+}

@@ -1,0 +1,1924 @@
+/* 
+SYNTAX NOTES FOR DBML_SQLITE
+
+Not properly parsed
+- TableGroup colors
+- TableGroup notes
+- slash-star type comments (like the current one)
+- decimal(18,2) types (used for clean tables): only "decimal" without parenthesis works. But varchar(3) works.
+- json type (used in view_company_assessment_detailed)
+- enum are not properly parsed if there is an extra empty line before the closing colon.
+
+Incorrectly translated
+- default: now() is not properly translated to CURRENT_TIMESTAMP. So CURRENT_TIMESTAMP has to be used explicitely
+- default is translated as '(DEFAULT_VALUE)' instead of DEFAULT_VALUE. Not sure if it has an impact.
+
+Post-parsing tweaks
+- fix the CURRENT_TIMESTAMP to use them as keywords instead of strings
+- fix the boolean values with mycolumn BOOLEAN NOT NULL CHECK (mycolumn IN (0, 1)
+- Delete view tables and recreate them via CREATE VIEW queries. 
+*/
+// TODO IMPORTER: test the import for v1 once all 3 tables are defined
+// TODO IMPORTER: for ledger_v1_goverment_revenues: build test to check if group D can have more than one column of data
+// TODO DATA: check if company assessment source is always in this denormalized format.
+
+// TODO SCHEMA: updates the notes associated with col_content columns so that it points to the actual excel column or range.
+
+Project "eiti_companies_database" {
+  database_type: 'SQLite'
+  note: '''
+    # EITI\'s company database v1
+    
+    **Purpose**: capture and normalize all the structured data that EITI collects
+    **Focus**: summary data files, company assessments, validation data
+    **ETL overview:** 
+    
+    *   Ledger layer for raw data that is collected but not created by EITI. 
+    *   Metadata layer for entities documented by EITI. 
+    *   Clean layer for the most up to date and corrected data
+    *   View layer for data relevant to external stakeholders.
+  '''
+}
+
+
+
+
+
+// -------------------------------------
+// -------------------------------------
+// ----------- VIEWS SECTION -----------
+// -------------------------------------
+// -------------------------------------
+
+
+
+
+TableGroup view [color: #6724BB] {
+  // ENTITIES 
+  view_agencies
+  view_companies
+  view_projects
+  view_soeList
+
+  // TRANSACTIONS
+  view_payments_detailed
+  view_revenues_detailed
+  view_project_production
+
+  // THEMATIC
+  view_production_and_exports
+  view_economic_indicators
+  view_validation_summary
+  view_company_assessments_detailed
+  
+
+  // AUDIT
+  view_audit_log
+  
+
+  Note: '''
+    Purpose: surface data tables that match stakeholder needs.
+    Focus: data to be browsed directly on the EITI website
+    Data flow: produced from clean and metadata tables.
+    ETL overview: SQLite views
+    '''
+}
+
+// ------ ENTITIES TABLES ----------
+
+Table view_soeList [headercolor: #6724BB] {
+  id integer [pk, increment]
+  year integer [not null]
+  soe_name varchar [not null]
+  country_name varchar [not null]
+  reported_commodities text
+  audited_statement_url text
+  public_listing_url text
+  eiti_id_declaration varchar(36) [not null]
+
+  Note: '''
+  Purpose: Provides a filtered list of all State-Owned Enterprises (SOEs) for each reporting year, along with their annually reported details.
+  Data source: A JOIN between metadata_companies (filtered by type='SOE'), metadata_countries, and clean_company_annual_details.
+  '''
+}
+
+Table view_companies {
+  id integer [pk, increment]
+  eiti_id_company varchar [not null, note: 'The business key that identifies the company across its history.']
+  company_name varchar [not null]
+  is_supporting_company boolean [not null]
+  hq_country_name varchar(3)
+  sectors text [note: 'A comma-separated list of all sectors the company is involved in.']
+  
+  // -- Enriched fields --
+  countries_of_operation text [note: 'A list of countries where the company has reported payments or production.']
+  first_year_reported integer
+  last_year_reported integer
+
+  Note: '''
+  Purpose: A master list of all unique companies, enriched with aggregated data from the clean_payments table.
+  '''
+}
+
+Table view_projects [headercolor: #6724BB] {
+  id integer [pk, increment]
+  eiti_id_project varchar [not null]
+  project_name varchar [not null]
+  country_name varchar(3)
+  project_status varchar [note: 'based on project phase']
+  
+  // -- Enriched fields --
+  commodities text [note: 'A list of commodities reported for this project.']
+  total_production_value_usd decimal
+  first_year_reported integer
+  last_year_reported integer
+
+  Note: '''
+  Purpose: A master list of all unique projects, enriched with aggregated data.
+  '''
+}
+
+Table view_agencies [headercolor: #6724BB] {
+  id integer [pk, increment]
+  eiti_id_gov_entity varchar [not null]
+  agency_name varchar [not null]
+  agency_type text
+  country_name varchar(3)
+  
+  // -- Enriched fields --
+  first_year_reported integer
+  last_year_reported integer
+
+  Note: '''
+  Purpose: A master list of all unique government agencies, enriched with aggregated revenue data.
+  '''
+}
+
+
+// ---------- TRANSACTION TABLES ---------------
+
+Table view_payments_detailed {
+  id integer [pk, increment]
+  eiti_id_declaration varchar(36) [not null]
+  year integer [not null]
+  country_name varchar [not null]
+  company_name varchar [not null]
+  project_name varchar
+  gov_entity_name varchar [not null]
+  revenue_stream_name varchar [not null]
+  payment_value_usd decimal(18, 2) [not null, note:'original currency value x official conversion rate']
+  payment_in_kind boolean [not null]
+  gfs_code varchar [note: 'GFS classification, if available.']
+  gfs_name varchar [note: 'GFS classification, if available.']
+
+  Note: '''
+  Purpose: A user-friendly, denormalized view of all company payments, with IDs replaced by names.
+  Data source: A join between clean_payments and various metadata tables.
+  '''
+}
+
+Table view_revenues_detailed {
+  id integer [pk, increment]
+  eiti_id_declaration varchar(36) [not null]
+  year integer [not null]
+  country_name varchar [not null]
+  gov_entity_name varchar [not null]
+  sector_name varchar
+  gfs_code varchar
+  gfs_name varchar
+  revenue_stream_name varchar [not null]
+  revenue_value_usd decimal(18, 2) [not null, note:'original currency value x official conversion rate']
+  
+  Note: '''
+  Purpose: A user-friendly, denormalized view of all government revenues, with IDs replaced by names.
+  Data source: A join between clean_agency_revenues and various metadata tables.
+  '''
+}
+
+Table view_project_production {
+  id integer [pk, increment]
+  eiti_id_declaration varchar(36) [not null]
+  year integer [not null]
+  country_name varchar [not null]
+  project_name varchar [not null]
+  commodities_reported text
+  production_volume decimal(18, 2)
+  production_unit varchar
+  production_value decimal(18, 2)
+  currency_code varchar(3)
+  project_status varchar
+  
+  Note: '''
+  Purpose: A user-friendly, denormalized view of all project production data.
+  Data source: A join between clean_project_production (your clean_project_payments) and various metadata tables.
+  '''
+}
+
+// ---------THEMATIC TABLES----------------
+
+Table view_production_and_exports [headercolor: #6724BB] {
+  id integer [pk, increment]
+  country_name varchar [not null]
+  year integer [not null]
+  indicator_group_label text [note: 'The specific EITI requirement, e.g., "EITI Requirement 3.2: Production by commodity"']
+  indicator_label text [not null, note: 'The specific data point, e.g., "Natural gas (2711), value"']
+  value text [note: 'The reported value for the indicator.']
+  unit text [note: 'The unit of measure for the value.']
+  source text [note: 'The source of the data, if provided.']
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+
+  Note: '''
+  Purpose: A thematic view showing all indicator data related to production and exports.
+  Data source: A filtered view of clean_indicator_values, 
+  filtered where metadata_indicator_groups.group_id IN (6, 9, 100, 147).
+  '''
+}
+
+Table view_economic_indicators [headercolor: #6724BB] {
+  id integer [pk, increment]
+  country_name varchar [not null]
+  year integer [not null]
+  indicator_group_label text [note: 'The specific EITI requirement, e.g., "EITI Requirement 6.3: Economic contribution"']
+  indicator_label text [not null, note: 'The specific data point, e.g., "Employment - extractive sector - male"']
+  value text [note: 'The reported value for the indicator.']
+  unit text [note: 'The unit of measure for the value.']
+  source text [note: 'The source of the data, if provided.']
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+
+  Note: '''
+  Purpose: A thematic view showing all indicator data related to the extractive sector's economic contribution.
+  Data source: A filtered view of clean_indicator_values, 
+  filtered where metadata_indicator_groups.group_id IN (1, 242).
+  '''
+}
+
+Table view_company_assessments_detailed {
+  id integer [pk, increment]
+  assessment_year integer [not null]
+  company_name varchar [not null]
+  company_sector varchar [not null]
+  company_hq varchar [not null]
+  company_type varchar [not null]
+  expectation_shorthand varchar [not null]
+  expectation_label text [not null]
+  assessment_result text [not null]
+  secretariat_comment text
+  details json
+
+  Note: '''
+  Purpose: A user-friendly, denormalized view of the company assessment results.
+  '''
+}
+
+Table view_validation_summary [headercolor: #6724BB] {
+  id integer [pk, increment, note: 'Unique view row ID']
+  validation_id integer [not null, note: 'Links to the validation event. Source: metadata_validations.validation_id']
+  country_iso3 varchar(3) [not null, note: 'Source: metadata_validations.country_iso3']
+  country_name varchar [not null, note: 'Source: joined from metadata_countries']
+  validation_year integer [not null, note: 'Source: metadata_validations.year']
+  eiti_standard varchar [note: 'Source: metadata_validations.standard']
+  board_decision_url varchar [note: 'Source: metadata_validations.board_decision_url']
+  
+  // --- Requirement & Hierarchy Fields ---
+  category varchar [note: 'The highest-level group, e.g., "EITI REQUIREMENT 2...". Source: metadata_validation_scores.req_category']
+  module varchar [note: 'The functional module, e.g., "Legal and fiscal framework". Source: metadata_validation_scores.req_module']
+  component varchar [note: 'The specific component. Source: metadata_validation_scores.req_component']
+  requirement_label varchar [not null, note: 'The unique, clean requirement text. Source: metadata_validation_scores.req_name']
+  
+  // --- Score & Assessment Fields ---
+  score_text varchar [note: 'The text score, e.g., "Fully met", "Partly met". Source: metadata_validation_scores.assessment_value']
+  score_numeric integer [note: 'The numeric equivalent of the score. Source: metadata_validation_scores.assessment_number_value']
+  is_applicable boolean [note: 'Source: metadata_validation_scores.is_applicable']
+  is_required boolean [note: 'Source: metadata_validation_scores.is_required']
+  assessor_comment text [note: 'The detailed comment/description from the assessor. Source: metadata_validation_scores.description']
+
+  Note: 'A denormalized view created by joining metadata_validations, metadata_validation_scores, and metadata_countries. The grain is one row per requirement, per validation event.'
+}
+
+// -----------AUDIT TABLES-----------------
+
+Table view_audit_log [headercolor: #6724BB] {
+  id integer [pk, increment]
+  event_timestamp timestamp [not null]
+  event_type varchar [not null, note: 'e.g., "File Import", "Manual Correction", "File Deletion"']
+  responsible_user_name varchar [not null, note: 'From a join with metadata_users']
+  summary text [not null, note: 'An automatically generated description of the event e.g. User "Jane Smith" changed payment_value from "10000" to "12000" in clean_payments row 456.']
+  
+  Note: '''
+    Purpose: A single, unified, user-friendly log of all data import, deletion, and correction events.
+    Data source: A database VIEW created by a UNION of the `metadata_import_events` and `metadata_manual_corrections` tables.
+    Data quality: High.
+    '''
+}
+
+// ----------- VIEWS END ----------------------------
+
+
+
+
+// ----------------------------------------
+// ----------------------------------------
+// ----------- METADATA SECTION -----------
+// ----------------------------------------
+// ----------------------------------------
+
+
+
+TableGroup metadata [color: #E4A62E] {
+  // --- Reporting Context ---
+  metadata_import_events
+  metadata_data_sources
+  metadata_summary_data_files
+  metadata_template_versions
+  metadata_report_quality
+  metadata_assessment_files
+  metadata_manual_corrections
+
+  // --- Core Entities ---
+  metadata_countries
+  metadata_currencies
+  metadata_companies
+  metadata_company_relationships
+  metadata_gov_entities
+  metadata_projects
+  metadata_membership_records
+  metadata_users
+  
+  // --- Controlled Vocabularies (Lookup Lists) ---
+  metadata_commodities
+  metadata_gfs_codes
+  metadata_sectors
+  metadata_project_phases
+  metadata_gov_entity_types
+  metadata_company_id_references
+  metadata_options_reporting_status
+  metadata_options_simple
+  
+  // --- Dictionaries ---
+  metadata_dictionary_main
+  metadata_dictionary_about
+  metadata_dictionary_indicators
+  metadata_indicator_groups
+  metadata_dictionary_assessment
+
+  // --- Validation ---
+  metadata_validations
+  metadata_validation_scores
+  metadata_validation_links
+  metadata_validation_requirements
+
+  // --- Other ---
+  metadata_additional_info
+  metadata_company_sectors
+  metadata_project_commodities
+  metadata_project_companies
+  metadata_company_commodities
+
+  Note: '''
+  Purpose: Store contextual data points (Entities related to the Facts documented in other tables) and facilitate consistency within and across tables
+  Focus: Contextual data (e.g validation, membership) relevant at the declaration level and controlled values (e.g. countries, template versions)
+  Data flow: foreign key reference for non metadata_ tables
+  ETL overview: direct import
+  '''
+}
+
+// ----------- REPORTING CONTEXT -----------
+
+Table metadata_import_events {
+  id integer [pk, increment]
+  event_timestamp timestamp [not null, default: 'CURRENT_TIMESTAMP', note: 'When the event was triggered.']
+  event_type event_type [not null, note: 'e.g., "File Import", "API Ingestion", "File Deletion"']
+  responsible_user_id integer [not null, ref: > metadata_users.id]
+  data_source_id integer [not null, ref: > metadata_data_sources.id]
+  source_identifier varchar [not null, note: 'The specific filename or API endpoint. e.g. ending slug of CKAN url of the original file']
+  status status [not null, default: 'success']
+  log_summary text [note: 'To store summary info, row counts, or error messages.']
+  
+  Note: '''
+    Purpose: A central, chronological log of all batch data events, such as file imports, API ingestions, and file deletions.
+    Data source: A new record is created by the application at the start of any batch data processing job.
+    Data quality: High. Represents a transactional log of system events.
+    '''
+}
+
+Enum event_type {
+  file_import
+  file_deletion
+  database_migration
+  manual_entry
+  form_submission
+}
+
+Enum status {
+  success
+  error
+}
+
+Table metadata_data_sources {
+  id integer [pk, increment]
+  source_name varchar [not null, unique, note: 'e.g., "EITI Summary Data Template v2.1"']
+  source_type source_type [not null, note: 'e.g., "Excel Template", "API", manual editing']
+  url text [note: 'Link to documentation or the source itself']
+
+  Note: '''
+    Purpose: A master list of all possible data origins for traceability.
+    Data source: Manually curated and maintained.
+    Data quality: Validated by the import code.
+    '''
+}
+
+Enum source_type {
+  excel_template
+  api_export
+  manual_data_entry
+  web_form
+}
+
+Table metadata_template_versions [headercolor: #E4A62E] {
+  id integer [pk]
+  version varchar(3)
+  added_at date [not null]
+  changelog text [not null]
+
+  Note: '''
+    Purpose: A master list of all EITI Summary Data Template versions.
+    Data source: Manually curated and maintained.
+    Data quality: Validated by the import code.
+    '''
+}
+
+Table metadata_report_quality [headercolor: #E4A62E] {
+  // more quality criteria will be added later
+  eiti_id_declaration varchar(36) [pk, ref: > metadata_summary_data_files.eiti_id_declaration]
+  revenue_value_score float [note: 'Financial accuracy score (0.0 to 1.0). Measures reconciliation between gov revenues and company payments.']
+  stream_match_score float [note: 'Revenue stream naming consistency (0.0 to 1.0). Measures % of streams that match between Part 4 and Part 5.']
+  entity_match_score float [note: 'Government entity naming consistency (0.0 to 1.0). Measures % of entities in Part 5 that match Part 4.']
+  overall_confidence integer [note: 'Weighted average of all the scores (0-100) for general-purpose sorting.']
+  scores_calculated_at timestamp [not null, default: 'CURRENT_TIMESTAMP']
+
+  Note: '''
+    Purpose: Stores the component-based confidence scores for each report, as recommended by the GFS analysis. 
+    This table empowers analysts to filter data files based on the quality required for their specific analysis (e.g., financial, structural, or full analysis).
+    Data source: Generated by a post-import analytical process that compares Part 4 and Part 5.
+    '''
+}
+
+Table metadata_summary_data_files [headercolor: #E4A62E] {
+  eiti_id_declaration varchar(36) [pk]
+  import_event_id integer [not null, ref: > metadata_import_events.id, note: 'The event that created this file record.']
+  
+  // Content columns
+  country_iso3 varchar(3) [not null, ref: > metadata_countries.iso_alpha3_code]
+  year varchar(4) [not null]
+  start_date date [not null]
+  end_date date [not null]
+  template_version varchar [not null, ref: > metadata_template_versions.id]
+
+  // Soft deletion columns
+  is_deleted boolean [not null, default: false]
+  deletion_event_id integer [ref: > metadata_import_events.id, note: 'The event that marked this file as deleted.']
+
+  Note: '''
+    Purpose: The central record for each imported file, linking all ledger data to a specific country and reporting year.
+    Data source: Sourced from each summary data file, with eiti_id_declaration generated by the importer.
+    Data quality: Validated during the import process.
+    '''
+}
+
+Table metadata_assessment_files {
+  assessment_id varchar(36) [pk]
+  import_event_id integer [not null, ref: > metadata_import_events.id, note: 'The event that created this file record.']
+  
+  // Content columns
+  assessment_year integer [not null]
+  
+  // Soft deletion columns
+  is_deleted boolean [not null, default: false]
+  deletion_event_id integer [ref: > metadata_import_events.id, note: 'The event that marked this file as deleted.']
+  
+  Note: '''
+    Purpose: A central record for each imported company assessment file.`
+    Data source: Source from each company assessment file, with assessment_id generated by the importer.
+    Data quality: Validated during the import process
+    '''
+}
+
+Table metadata_manual_corrections {
+  id integer [pk, increment]
+  target_table_name varchar [not null, note: 'The clean table that was modified, e.g., "clean_payments"']
+  target_row_id integer [not null, note: 'The ID of the row in the target table that was changed']
+  target_column_name varchar [not null, note: 'The column that was changed, e.g., "payment_value"']
+  
+  old_value text [note: 'The value before the correction']
+  new_value text [not null, note: 'The new, corrected value']
+  
+  correction_reason text [not null]
+  responsible_user_id integer [not null, ref: > metadata_users.id]
+  event_timestamp timestamp [not null, default: 'CURRENT_TIMESTAMP']
+
+  Note: '''
+    Purpose: A permanent, queryable audit log of all manual changes made to the `clean` data layer.
+    Data source: Created by the application immediately before an `UPDATE` is performed on a `clean` table record.
+    Data quality: High. Represents a transactional log of changes generated by the application.
+    '''
+}
+
+
+
+// ----------- CORE ENTITIES -----------
+
+
+Table metadata_countries [headercolor: #E4A62E] {
+  country_name varchar [not null, unique]
+  iso_alpha3_code varchar(3) [pk, unique]
+  iso_alpha2_code varchar(2) [unique]
+  iso_numeric_code integer [unique]
+  local_eiti_website varchar [note: 'URL for the country-specific EITI website']
+  currency_code varchar(3) [ref: > metadata_currencies.iso_4217_code]
+
+  Note: '''
+    Purpose: A master list of countries and their standard codes.
+    Data source: Populated from a standard external source (e.g., ISO 3166).
+    Data quality: Authoritative.
+    '''
+}
+
+Table metadata_currencies {
+  iso_4217_code varchar(3) [pk]
+  currency_name varchar [not null]
+  iso_4217_numeric_code integer
+
+  Note: '''
+    Purpose: A master list of currencies and their standard codes matching EITI member countries.
+    Data source: Sourced from the summary data files.
+    Data quality: Created automatically via the importer
+    '''
+}
+
+Table metadata_companies [headercolor: #E4A62E] {
+  id integer [pk, increment, note: 'Unique surrogate key for the historical record.']
+  eiti_id_company varchar(36) [not null, note: 'The business key that identifies the company across all its historical versions.']
+  company_name varchar [not null]
+  is_supporting_company boolean [not null, default: false]
+  hq_country_iso3 varchar(3) [ref: > metadata_countries.iso_alpha3_code]
+
+  // From company assessment data
+  legal_entity_id varchar [note: 'From "Legal entity id"']
+  estma_id varchar [note: 'From "ESTMA ID"']
+  open_corporates_id varchar
+
+  // SCD Type 2 Columns
+  effective_from_date date [not null]
+  effective_to_date date [note: 'A null value indicates this is the current record.']
+  is_current boolean [not null, default: true]
+
+  created_at timestamp [not null, default: 'CURRENT_TIMESTAMP']
+  updated_at timestamp [not null, default: 'CURRENT_TIMESTAMP']
+
+
+  Note: '''
+    Purpose: A master, historical (SCD Type 2) list of all company entities across all reports.
+    Data source: Curated and de-duplicated from ledger tables and company assessment during the ETL process.
+    Data quality: Cleaned, standardized, and versioned for historical accuracy.
+    '''
+}
+
+Table metadata_company_relationships {
+  id integer [pk, increment]
+  parent_company_record_id integer [not null, ref: > metadata_companies.id]
+  child_company_name text [not null]
+  relationship_type varchar [not null, default: 'subsidiary']
+  country_of_operation_iso3 varchar(3) [ref: > metadata_countries.iso_alpha3_code]
+  
+  // SCD Type 2 Columns
+  effective_from_date date [not null]
+  effective_to_date date [note: 'A null value indicates this is the current record.']
+  is_current boolean [not null, default: true]
+
+  Note: '''
+    Purpose: A historical (SCD Type 2) record of the relationships (e.g., parent-subsidiary) between company entities.
+    Data source: Curated from the "Subsidiaries" sheet in the company assessment files.
+    Data quality: Cleaned, standardized, and versioned.
+    '''
+}
+
+Table metadata_projects {
+  id integer [pk, increment]
+  eiti_id_project varchar [not null, note: 'The business key for the project.']
+  project_name varchar [not null]
+  country_iso3 varchar(3) [not null, ref: > metadata_countries.iso_alpha3_code]
+  
+  // SCD Type 2 Columns
+  effective_from_date date [not null]
+  effective_to_date date [note: 'A null value indicates this is the current record.']
+  is_current boolean [not null, default: true]
+
+  created_at timestamp [not null, default: 'CURRENT_TIMESTAMP']
+  updated_at timestamp [not null, default: 'CURRENT_TIMESTAMP']
+
+  Note: '''
+    Purpose: A master, historical (SCD Type 2) list of all project entities across all reports.
+    Data source: Curated and de-duplicated from ledger tables during the ETL process.
+    Data quality: Cleaned, standardized, and versioned for historical accuracy.
+    '''
+}
+
+Table metadata_gov_entities {
+  id integer [pk, increment]
+  eiti_id_gov_entity varchar [not null, note: 'The business key for the government entity.']
+  entity_name varchar [not null]
+  entity_type_id integer [ref: > metadata_gov_entity_types.id]
+  country_iso3 varchar(3) [not null, ref: > metadata_countries.iso_alpha3_code]
+  
+  // SCD Type 2 Columns
+  effective_from_date date [not null]
+  effective_to_date date [note: 'A null value indicates this is the current record.']
+  is_current boolean [not null, default: true]
+
+  created_at timestamp [not null, default: 'CURRENT_TIMESTAMP']
+  updated_at timestamp [not null, default: 'CURRENT_TIMESTAMP']
+
+  Note: '''
+    Purpose: A master, historical (SCD Type 2) list of all government entity entities across all reports.
+    Data source: Curated and de-duplicated from ledger tables during the ETL process.
+    Data quality: Cleaned, standardized, and versioned for historical accuracy.
+    '''
+}
+
+Table metadata_membership_records [headercolor: #E4A62E] {
+  id integer [pk, increment]
+  country_iso3 varchar(3) [not null, ref: > metadata_countries.iso_alpha3_code]
+  membership_status membership_status [not null]
+  status_change_date date [not null, note: 'the first status change date is the original join date']
+  reason text
+  notes text
+
+  Note: '''
+    Purpose: Tracks the EITI membership status of countries over time.
+    Data source: Manually curated based on official EITI public data.
+    Data quality: High.
+    '''
+}
+
+enum membership_status {
+  Member
+  Suspended
+  Withdrawn
+  Candidate
+}
+
+Table metadata_company_id_references [headercolor: #E4A62E] {
+  id integer [pk, increment]
+  id_label varchar [not null, note: 'The name of the identifier, e.g., "Taxpayer Identification Number"']
+  issuing_agency varchar [note: 'The authority that issues this ID, e.g., "National Revenue Authority"']
+  register_url text [note: 'A URL to the company register, if provided']
+  country_iso3 varchar(3) [not null, ref: > metadata_countries.iso_alpha3_code, note: 'The country where this ID type is used']
+  
+  indexes {
+    (id_label, country_iso3) [unique, note: 'Ensures each ID type is listed only once per country']
+  }
+  
+  Note: '''
+    Purpose: A master, de-duplicated list of the types of company identifiers used across all reports.
+    Data source: Curated and de-duplicated from ledger tables during the ETL process.
+    Data quality: Cleaned and standardized.
+    '''
+}
+
+Table metadata_users {
+  id integer [pk, increment]
+  full_name varchar [not null]
+  email varchar
+  role varchar [not null, note: 'e.g., "EITI Data Team staff", "Maintainer"']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+  
+  Note: '''
+    Purpose: A master list of users who can import or edit data, for auditing purposes.
+    Data source: Manually managed by the system administrator.
+    Data quality: Authoritative.
+    '''
+}
+
+// ----------- CONTROLLED VOCABULARIES -----------
+
+
+Table metadata_commodities [headercolor: #E4A62E] {
+  id INTEGER [pk, increment]
+  standardized_commodity_code varchar
+  volume_or_value varchar
+  hs_reference_code varchar
+  description varchar [not null]
+
+  Note: '''
+    Purpose: A controlled vocabulary for extractive commodities.
+    Data source: Populated from the `Lists` sheet in the source templates.
+    Data quality: Authoritative list based on source templates.
+    '''
+}
+
+Table metadata_gfs_codes {
+  gfs_code varchar [pk]
+  name varchar [not null]
+  level integer
+  parent_code varchar [ref: > metadata_gfs_codes.gfs_code]
+
+  Note: '''
+    Purpose: A controlled vocabulary for GFS codes and their hierarchy.
+    Data source: Populated from the `Lists` sheet in the source templates.
+    Data quality: Authoritative list based on source templates.
+    '''
+}
+
+Table metadata_sectors {
+  id integer [pk, increment]
+  sector_name varchar [not null, unique]
+
+  Note: '''
+    Purpose: A controlled vocabulary for industry sectors.
+    Data source: Populated from the `Lists` sheet in the source templates.
+    Data quality: Authoritative list based on source templates.
+    '''
+}
+
+Table metadata_project_phases {
+  id integer [pk, increment]
+  phase_name varchar [not null, unique]
+
+  Note: '''
+    Purpose: A controlled vocabulary for project phases.
+    Data source: Populated from the `Lists` sheet in the source templates.
+    Data quality: Authoritative list based on source templates.
+    '''
+}
+
+Table metadata_gov_entity_types {
+  id integer [pk, increment]
+  type_name varchar [not null, unique]
+
+  Note: '''
+    Purpose: A controlled vocabulary for government entity types.
+    Data source: Populated from the `Lists` sheet in the source templates.
+    Data quality: Authoritative list based on source templates.
+    '''
+}
+
+Table metadata_options_simple {
+  id integer [pk, increment]
+  option_name varchar [unique, not null,note:'e.g., "Yes", "No", "Not applicable"']
+
+  Note: '''
+    Purpose: A controlled vocabulary for simple response options (e.g., Yes/No).
+    Data source: Populated from the `Lists` sheet in the source templates.
+    Data quality: Authoritative list based on source templates.
+    '''
+}
+
+Table metadata_options_reporting_status {
+  id integer [pk, increment]
+  status_name varchar [unique, not null, note:'e.g., "EITI reporting", "Systematically disclosed"']
+
+  Note: '''
+    Purpose: A controlled vocabulary for reporting status options.
+    Data source: Populated from the `Lists` sheet in the source templates.
+    Data quality: Authoritative list based on source templates.
+    '''
+}
+
+// ----------- DICTIONARIES -----------
+
+Table metadata_dictionary_main [headercolor: #E4A62E] {
+  // sync with tables needs to be enforced at the application layer. Reference value is the original name
+  id integer [pk, increment]
+  source_name varchar [not null, note:'original non-shortened column name']
+  table_name varchar [not null, note:'matching clean_ table names'] 
+  column_name varchar  [not null, note:'shorthand name in clean_ table']
+  parent_column varchar [ref: > metadata_dictionary_main.column_name]
+  description text
+  appeared_in varchar [ref: > metadata_summary_data_files.template_version]
+  removed_in varchar [ref: > metadata_summary_data_files.template_version]
+
+  Note: '''
+    Purpose: Provides definition and context for all wide data columns.
+    Data source: Manually curated based on EITI standards and templates.
+    Data quality: Aligned with EITI Data team's data entry quality.
+    '''
+}
+
+Table metadata_dictionary_about {
+  id integer [pk, increment]
+  shorthand varchar [unique, note: 'A user-friendly alias, e.g., "national_currency"']
+  field_label text [not null, unique, note: 'The full label from the template, e.g., "National currency ISO-4217"']
+  description text
+  field_type varchar [not null, note: 'Expected data type for validation, e.g., "TEXT", "DATE", "INTEGER"']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+  updated_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  Note: '''
+    Purpose: Defines the types of key-value data for the normalized "About" section.
+    Data source: Manually curated based on EITI standards and templates.
+    Data quality: High.
+    '''  
+}
+
+Table metadata_indicator_groups [headercolor: #E4A62E] {
+  group_id text [pk, note: 'Primary key, harmonized parent category ID. Likely from new_parent_id.']
+  group_label text [not null, unique, note: 'Descriptive name of the indicator group, e.g., "Economic Contribution".']
+  created_at datetime [default: 'CURRENT_TIMESTAMP', note: 'Timestamp of creation']
+  updated_at datetime [default: 'CURRENT_TIMESTAMP', note: 'Timestamp of last update']
+
+  Note: '''
+    Purpose: Provides a high-level, thematic grouping for indicators.
+    Data source: Manually curated based on EITI standards.
+    Data quality: High.
+    '''
+}
+
+Table metadata_dictionary_indicators [headercolor: #E4A62E] {
+  id integer [pk, increment]
+  indicator_label text [not null, note: 'Standardized, descriptive label for the indicator.']
+  shorthand varchar [unique, note: 'A shorter, user-friendly alias for the indicator, for use in column names or UIs. Can be null initially.']
+  indicator_type varchar [not null, note: 'The data type of the indicator values (e.g., numeric, boolean, text).']
+  group_id text [not null, ref: > metadata_indicator_groups.group_id, note: 'Foreign key referencing the parent group.']
+  description text [note: 'Optional longer description or definition of the indicator.']
+  created_at datetime [default: 'CURRENT_TIMESTAMP', note: 'Timestamp of creation']
+  updated_at datetime [default: 'CURRENT_TIMESTAMP', note: 'Timestamp of last update']
+
+  Note: '''
+    Purpose: Defines the types of key-value data for all EITI Requirements/Indicators.
+    Data source: Manually curated based on EITI standards and templates.
+    Data quality: High.
+    '''
+}
+
+Table metadata_dictionary_assessment {
+  id integer [pk, increment]
+  shorthand varchar [unique, not null, note: 'e.g., "exp_1_support_statement"']
+  expectation_label text [not null, note: 'The full text of the expectation, e.g., "Company publish a statement of support for EITI"']
+
+  Note: '''
+    Purpose: A dictionary defining the "Expectations" or questions for the company assessment framework.
+    Data source: Manually curated based on the company assessment documentation.
+    Data quality: High.
+    '''
+}
+
+// ----------- VALIDATION -----------
+
+
+Table metadata_validations {
+  validation_id integer [pk, note: 'Source: `All Validation data.id`']
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  country_iso3 varchar(3) [not null, ref: > metadata_countries.iso_alpha3_code]
+
+  // --- Details specific to this validation event ---
+  label varchar
+  standard varchar
+  source_url varchar [note: 'URL to the source validation record']
+  year integer
+  board_decision_url varchar
+  validation_date date
+
+  // Overall progress assessment for this validation
+  overall_assessment_value varchar
+  overall_assessment_progress_value integer
+  overall_assessment_is_applicable boolean
+  overall_assessment_is_required boolean
+  overall_assessment_description text
+
+  Note: '''
+    Purpose: Stores the top-level results for each EITI validation event.
+    Data source: Imported and transformed from the EITI Validation API endpoint.
+    Data quality: Cleaned and structured from the source API.
+    '''
+}
+
+Table metadata_validation_scores {
+  score_id integer [pk, note: 'Source: `score_req_values.id`']
+  validation_id integer [not null, ref: > metadata_validations.validation_id]
+
+  // Requirement Details
+  req_id integer [note: 'Source: `score_req_values.score_req.id`']
+  req_name text [note: 'Name of the requirement, e.g., "MSG governance"', ref: > metadata_validation_requirements.requirement_label]
+  req_standard varchar
+  req_requirement text
+  req_module varchar
+  req_component varchar
+  req_category varchar
+
+  // Score Values
+  assessment_value varchar [note: 'Source: `score_req_values.value` (e.g., "Partly met")']
+  assessment_number_value integer [note: 'Source: `score_req_values.number_value`']
+  assessment_progress_value integer [note: 'Source: `score_req_values.progress_value`']
+  is_applicable boolean
+  is_required boolean
+  description text
+
+  Note: '''
+    Purpose: Stores the detailed scores for each individual requirement within a validation event.
+    Data source: Imported and transformed from the EITI Validation API endpoint.
+    Data quality: Cleaned and structured from the source API.
+    '''
+}
+
+Table metadata_validation_links {
+  id integer [pk, increment]
+  validation_id integer [not null, ref: > metadata_validations.validation_id]
+  link_type varchar [not null, note: 'e.g., "validation_data", "summary_data"']
+  year integer [not null]
+  url varchar [not null]
+
+  Note: '''
+    Purpose: Stores historical data links associated with a country in a validation report.
+    Data source: Imported and transformed from the EITI Validation API endpoint.
+    Data quality: Cleaned and structured from the source API.
+    '''
+}
+
+Table metadata_validation_requirements {
+  id integer [pk, increment]
+  requirement_label text [unique, not null, note: 'The unique, clean label for the requirement, e.g., "2.1 Legal framework and fiscal regime". From `New_label_no_text`.']
+  requirement_group text [note: 'The specific requirement group, e.g., "EITI Requirement 2.1". From `New_label_parent`.']
+  parent_category_code text [note: 'Short code for the highest-level category, e.g., "REQ.2". From `New_label_number`.']
+  parent_category_label text [note: 'Label for the highest-level category, e.g., "EITI REQUIREMENT 2...". From `label_parent_category`.']
+  module text [note: 'The functional module, e.g., "Legal and fiscal framework". From `Modules`.']
+  source_old_requirement text [note: 'Used for mapping from previous EITI standard versions. From `Old_label_requirement`.']
+
+  Note: '''
+    Purpose: A dictionary defining the hierarchy and labels of EITI validation requirements.
+    Data source: Manually curated based on EITI standards.
+    Data quality: Authoritative.
+    '''
+}
+
+// ----------- OTHER -----------
+
+Table metadata_additional_info [headercolor: #E4A62E] {
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  source_sheet_name varchar [note: 'The sheet the comment refers to']
+  source_range varchar [note: 'The logical table the comment is about, e.g., "Government Revenues"']
+  content_description text [not null, note: 'A description of the additional info.']
+  content_type varchar [note: 'An optional type, e.g., "Data Quality Note", "Exclusion Explanation", "Footnote"']
+
+  Note: '''
+    Purpose: To provide a clean, queryable index of additional information and comments found in the source files. This table is used by applications to display summaries and flag reports with important context.
+    Data source: Created during the ETL process by summarizing and categorizing records from the `ledger` layer.
+    Data quality: The content is curated and summarized from raw source comments for clarity and consistency.
+    '''
+}
+
+Table metadata_company_sectors {
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  company_record_id integer [not null, ref: > metadata_companies.id]
+  sector_id integer [not null, ref: > metadata_sectors.id]
+  
+  indexes {
+    (eiti_id_declaration, company_record_id, sector_id) [pk]
+    (company_record_id)
+    (sector_id)
+  }
+
+  Note: '''
+    Purpose: A junction table to model the many-to-many relationship between companies and sectors *as reported in a specific declaration*.
+    '''
+}
+
+Table metadata_project_commodities {
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  project_record_id integer [not null, ref: > metadata_projects.id]
+  commodity_id integer [not null, ref: > metadata_commodities.id]
+  
+  indexes {
+    (eiti_id_declaration, project_record_id, commodity_id) [pk]
+    (project_record_id)
+    (commodity_id)
+  }
+  Note: 'Junction table for the M-M relationship between projects and commodities, specific to a declaration.'
+}
+
+Table metadata_company_commodities {
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  company_record_id integer [not null, ref: > metadata_companies.id]
+  commodity_id integer [not null, ref: > metadata_commodities.id]
+  
+  indexes {
+    (eiti_id_declaration, company_record_id, commodity_id) [pk]
+    (company_record_id)
+    (commodity_id)
+  }
+  Note: 'Junction table for the M-M relationship between companies and commodities, specific to a declaration.'
+}
+
+Table metadata_project_companies {
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  project_record_id integer [not null, ref: > metadata_projects.id]
+  company_record_id integer [not null, ref: > metadata_companies.id]
+  is_operator boolean [not null, default: false, note: 'Derived from source data, e.g., "start with Operator"']
+  
+  indexes {
+    (eiti_id_declaration, project_record_id, company_record_id) [pk]
+    (project_record_id)
+    (company_record_id)
+  }
+  Note: 'Junction table for the M-M relationship between projects and companies, specific to a declaration.'
+}
+
+
+
+// ----------- METADATA END ----------------------------
+
+
+
+// -------------------------------------
+// -------------------------------------
+// ----------- CLEAN SECTION -----------
+// -------------------------------------
+// -------------------------------------
+
+
+
+/*
+  clean_ tables naming scheme: clean_content with
+  content: name matching the actual content of the table (regardless of the source name)
+*/
+
+
+TableGroup clean [color: #1E69FD] {
+  clean_about
+  clean_indicator_values
+  clean_company_payments
+  clean_agency_revenues
+  clean_project_production
+  clean_company_assessments
+  clean_company_annual_details
+  Note: '''
+  Purpose: main v2 data source for the website interface and the public API
+  Focus: cleaned ledger_v2_ data (metadata excepted, e.g. validation, additional_information)
+  Data flow: primary input for views_ tables
+  ETL overview: direct import after ledger data cleaning (outside the DB)
+  '''
+}
+
+Table clean_agency_revenues [headercolor: #1E69FD] {
+  id integer [pk, increment]
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  gov_entity_record_id integer [not null, ref: > metadata_gov_entities.id, note: 'Links to the specific historical version of the gov entity']
+  revenue_stream_name varchar [not null]
+  gfs_code varchar [ref: > metadata_gfs_codes.gfs_code]
+  sector_id integer [ref: > metadata_sectors.id]
+  revenue_value decimal(18, 2) [not null]
+  currency_code varchar(3) [not null, ref: > metadata_currencies.iso_4217_code]
+  template_version varchar [not null]
+
+  Note: '''
+    Purpose: A consolidated, analysis-ready table of all government revenues from all template versions.
+    Data source: Transformed and unified from all relevant `ledger_*_government_revenues` tables.
+    Data quality: Cleaned, validated, and linked to master metadata tables. Types are enforced.
+    '''
+}
+
+Table clean_company_payments [headercolor: #1E69FD] {
+  id integer [pk, increment]
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  company_record_id integer [not null, ref: > metadata_companies.id]
+  project_record_id integer [ref: > metadata_projects.id]
+  gov_entity_record_id integer [not null, ref: > metadata_gov_entities.id]
+  revenue_stream_name varchar [not null]
+  payment_value decimal(18, 2) [not null]
+  currency_code varchar(3) [not null, ref: > metadata_currencies.iso_4217_code]
+  payment_in_kind boolean [not null, default: false]
+  in_kind_volume decimal(18, 2)
+  in_kind_unit varchar
+  template_version varchar [not null]
+  gfs_code varchar [ref: > metadata_gfs_codes.gfs_code, note: 'matching GFS code if a unique match is found in Part 4. NULL if ambiguous or unmatched.']
+
+  Note: '''
+    Purpose: A consolidated, analysis-ready table of all company payments from all template versions.
+    Data source: Transformed and unified from all relevant ledger tables containing company payment data.
+    Data quality: Cleaned, validated, and linked to master metadata tables. Types are enforced.
+    '''
+}
+
+Table clean_project_production [headercolor: #1E69FD] {  
+  id integer [pk, increment]
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  project_record_id integer [not null, ref: > metadata_projects.id]
+  production_volume decimal(18, 2)
+  production_unit varchar
+  production_value decimal(18, 2)
+  currency_code varchar(3) [ref: > metadata_currencies.iso_4217_code]
+  project_status varchar
+  template_version varchar(3) [ref: > metadata_template_versions.id]
+  commodity_id integer [not null, ref: > metadata_commodities.id]
+
+  Note: '''
+    Purpose: A consolidated, analysis-ready table of all project-level production data.
+    Data source: Transformed and unified from all relevant `ledger_*_reporting_projects` tables.
+    Data quality: Cleaned, validated, and linked to master metadata tables. Types are enforced.
+    '''
+}
+
+Table clean_about [headercolor: #1E69FD] {
+  id integer [pk, increment]
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  about_field_id integer [not null, ref: > metadata_dictionary_about.id]
+  value text
+
+  Note: '''
+    Purpose: A consolidated, analysis-ready table of all "About" data in a normalized key-value format.
+    Data source: Transformed and unified from all `ledger_*_about` tables.
+    Data quality: Cleaned, validated, and linked to master metadata tables.
+    '''
+}
+
+Table clean_indicator_values [headercolor: #1E69FD] {
+  id integer [pk, increment]
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  indicator_id integer [not null, ref: > metadata_dictionary_indicators.id]
+  value text
+  unit text
+  source text
+  notes text
+
+  Note: '''
+    Purpose: A consolidated, analysis-ready table of all indicator/requirement data in a normalized key-value format.
+    Data source: Transformed and unified from all ledger tables containing indicator data.
+    Data quality: Cleaned, validated, and linked to master metadata tables.
+    '''
+}
+
+Table clean_company_assessments {
+  id integer [pk, increment]
+  company_record_id integer [not null, ref: > metadata_companies.id]
+  assessment_year integer [not null]
+  expectation_id integer [not null, ref: > metadata_dictionary_assessment.id]
+
+  //  Core Assessment Fields 
+  assessment_result text [not null, note: 'The main outcome, e.g., "Expectation met"']
+  secretariat_comment text [note: 'The final narrative comment from the secretariat']
+  
+  //  Flexible Details Field 
+  details json [note: 'A JSON object holding all other specific data for this assessment (URLs, lists, etc.)']
+
+  Note: '''
+    Purpose: Stores the detailed results of each company's performance against each expectation for a given assessment year.
+    Data source: Transformed from the "Assessment data" sheet in the company assessment files.
+    Data quality: Cleaned and normalized from the source file.
+    '''
+}
+
+Table clean_company_annual_details {
+  id integer [pk, increment]
+  eiti_id_declaration varchar(36) [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  company_record_id integer [not null, ref: > metadata_companies.id]
+  
+  // -- Annually reported details --
+  audited_statement_url text
+  public_listing_url text
+  
+  Note: '''
+  Purpose: Stores the specific descriptive attributes of a company as reported in a single declaration year.
+  '''
+}
+
+// ----------- CLEAN END ----------------------------
+
+
+
+// --------------------------------------
+// --------------------------------------
+// ----------- LEDGER SECTION -----------
+// --------------------------------------
+// --------------------------------------
+
+
+
+/*
+  ledger_ tables naming scheme: ledger_version_content with
+  version: summary template version
+  content: normalized name of the type of content
+*/
+
+TableGroup ledger [color: #79AD51] {
+  // --- v1 tables ---
+  ledger_v1_about
+  ledger_v1_contextual_data
+  ledger_v1_goverment_revenues
+  ledger_v1_company_payments
+
+  // --- v2 tables ---
+  ledger_v2_about
+  ledger_v2_disclosure_checklist
+  ledger_v2_company_id_references
+  ledger_v2_reporting_companies
+  ledger_v2_reporting_government_entities
+  ledger_v2_reporting_projects
+  ledger_v2_government_revenues
+  ledger_v2_company_data
+  ledger_v2_additional_info
+
+  // --- v2.1 tables ---
+  ledger_v2_1_about
+  ledger_v2_1_sheet_economic_contribution
+  ledger_v2_1_sheet_optional_part6
+  ledger_v2_1_company_id_references
+  ledger_v2_1_reporting_companies
+  ledger_v2_1_reporting_government_entities
+  ledger_v2_1_reporting_projects
+  ledger_v2_1_government_revenues
+  ledger_v2_1_extractives_revenues
+  ledger_v2_1_additional_info
+
+  // -- Company assessment tables ---
+  ledger_company_assessments
+  Note: '''
+  Purpose: archival and lineage of the summary data reported using the v1 template
+  Focus: copy of the original data
+  Data flow: primary input for clean_ tables and metadata_additional_info
+  ETL overview: created during the import process. Cleaning to ensure consistent table structure and generate eiti_id_declaration
+  '''
+}
+
+// ----------- ABOUT TABLES-----------
+
+Table ledger_v1_about [headercolor: #126E7A] { 
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  is_list_item boolean [default: false, not null, note: 'True if this row represents an item within a list that could be extended by the user in the Excel template.']
+  instructions_details text [note: 'Instructional text related to this Excel row']
+  label_col_content text [note: 'Content from the label column in the Excel sheet']
+  entry_col_content text [note: 'Content from the entry column in the Excel sheet']
+  comments_col_content text [note: 'Content from the comments column in the Excel sheet']
+  
+  Note: '''
+    Purpose: log the about data without modification for lineage purposes.
+    Data source: parsed from the v1 API endpoint
+    Data quality: see TableGroup notes
+    '''
+}
+
+Table ledger_v2_about [headercolor: #2D6512] {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  is_list_item boolean [default: false, not null, note: 'True if this row represents an item within a list that could be extended by the user in the Excel template.']
+  instructions_details text [note: 'Instructional text related to this Excel row']
+  label_col_content text [note: 'Content from the label column in the Excel sheet']
+  entry_col_content text [note: 'Content from the entry column in the Excel sheet']
+  comments_col_content text [note: 'Content from the comments column in the Excel sheet']
+  
+  Note: '''
+    Purpose: log the about data without modification for lineage purposes.
+    Data source: parsed from v2 API endpoint
+    Data quality: see TableGroup notes
+    '''
+}
+
+Table ledger_v2_1_about [headercolor: #24BAB1] { 
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  is_list_item boolean [default: false, not null, note: 'True if this row represents an item within a list that could be extended by the user in the Excel template.']
+  instructions_details text [note: 'Instructional text related to this Excel row']
+  label_col_content text [note: 'Content from the label column in the Excel sheet']
+  entry_col_content text [note: 'Content from the entry column in the Excel sheet']
+  comments_col_content text [note: 'Content from the comments column in the Excel sheet']
+  
+  Note: '''
+    Purpose: log the about data without modification for lineage purposes.
+    Data source: parsed from summary data files with the v2.1 template importer
+    Data quality: see TableGroup notes
+    '''
+}
+
+// ----------- INDICATORS TABLES-----------
+
+Table ledger_v1_contextual_data [headercolor: #126E7A] { 
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  is_list_item boolean [default: false, not null, note: 'True if this row represents an item within a list that could be extended by the user in the Excel template.']
+  instructions_details text [note: 'Instructional text related to this Excel row']
+  label_col_content text [note: 'Content from the label column in the Excel sheet']
+  entry_col_content text [note: 'Content from the entry column in the Excel sheet']
+  unit_col_content text [note: 'Column D in the template - Unit']
+  source_col_content text [note: 'Column E in the template - Direct URL to source...']
+  comments_col_content text [note: 'Content from the comments column in the Excel sheet']
+
+  Note: '''
+    Purpose: log the contextual data without modification for lineage purposes.
+    Data source: parsed from the v1 API endpoint
+    Data quality: see TableGroup notes
+    '''
+}
+
+Table ledger_v2_disclosure_checklist [headercolor: #2D6512] {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  is_list_item boolean [default: false, not null, note: 'True if this row represents an item within a list that could be extended by the user in the Excel template.']
+  instructions_details text [note: 'Instructional text related to this Excel row']
+  label_col_content text [note: 'Content from the label column in the Excel sheet']
+  entry_col_content text [note: 'Content from the entry column in the Excel sheet']
+  source_units_col_content text [note: 'From Excel Column F - Source / units']
+  comments_col_content text [note: 'Content from the comments column in the Excel sheet']
+
+  Note: '''
+    Purpose: log the disclosure checklist data without modification for lineage purposes.
+    Data source: parsed from the v2 API endpoint
+    Data quality: see TableGroup notes
+    '''
+}
+
+Table ledger_v2_1_sheet_economic_contribution [headercolor: #24BAB1] { 
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  is_list_item boolean [default: false, not null, note: 'True if this row represents an item within a list that could be extended by the user in the Excel template.']
+  instructions_details text [note: 'Instructional text related to this Excel row']
+  label_col_content text [note: 'Content from the label column in the Excel sheet']
+  entry_col_content text [note: 'Content from the entry column in the Excel sheet']
+  source_units_col_content text [note: 'From Excel Column F - Source / units']
+  quality_grade_col_content text [note: 'Content from Excel Column D (Quality / Grade) - new in this sheet.']
+  comments_col_content text [note: 'Content from the comments column in the Excel sheet']
+
+  Note: '''
+    Purpose: log the economic contribution data without modification for lineage purposes.
+    Data source: parsed from summary data files with the v2.1 template importer
+    Data quality: see TableGroup notes
+    '''
+}
+
+Table ledger_v2_1_sheet_optional_part6 [headercolor: #24BAB1] { 
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  is_list_item boolean [default: false, not null, note: 'True if this row represents an item within a list that could be extended by the user in the Excel template.']
+  instructions_details text [note: 'Instructional text related to this Excel row']
+  label_col_content text [note: 'Content from the label column in the Excel sheet']
+  entry_col_content text [note: 'Content from the entry column in the Excel sheet']
+  source_units_col_content text [note: 'From Excel Column F - Source / units']
+  quality_grade_col_content text [note: 'Content from Excel Column D (Quality / Grade) - new in this sheet.']
+  comments_col_content text [note: 'Content from the comments column in the Excel sheet']
+
+  Note: '''
+    Purpose: log the economic contribution data without modification for lineage purposes.
+    Data source: parsed from summary data files with the v2.1 template importer
+    Data quality: see TableGroup notes
+    '''
+}
+
+// ----------- REPORTING COMPANIES ID REFERENCE TABLES-----------
+
+Table ledger_v2_company_id_references [headercolor: #2D6512] { // TODO IMPORTER: to be renamed from 'Company ID References'
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+  
+  // --- Content Columns ---
+  ID_number_label varchar
+  issuing_agency varchar
+  register_url varchar
+  Note: '''
+    Purpose: log the company ID reference data from the v2 template without modification.
+    Data source: parsed from source summary data files with the v2 importer.
+    Data quality: see TableGroup notes.
+    '''
+}
+
+Table ledger_v2_1_company_id_references [headercolor: #24BAB1] { // TODO IMPORTER: to be renamed from 'Company ID References'
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  ID_number_label varchar
+  issuing_agency varchar
+  register_url varchar
+  Note: '''
+    Purpose: log the company ID reference data from the v2.1 template without modification.
+    Data source: parsed from source summary data files with the v2.1 importer.
+    Data quality: see TableGroup notes.
+    '''
+}
+
+// ----------- REPORTING COMPANIES-----------
+
+Table ledger_v2_reporting_companies [headercolor: #2D6512] {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  full_company_name_col_content text [note: 'From Excel column "Full company name"']
+  company_type_col_content text [note: 'From Excel column "Company type"']
+  company_id_number_col_content text [note: 'From Excel column "Company ID number"']
+  sector_col_content text [note: 'From Excel column "Sector"']
+  commodities_comma_seperated_col_content text [note: 'From Excel column "Commodities (comma-seperated)"']
+  stock_exchange_listing_or_company_website_col_content text [note: 'From Excel column "Stock exchange listing or company website"']
+  audited_financial_statement_col_content text [note: 'From Excel column "Audited financial statement (or balance sheet, cash flows, profit/loss statement if unavailable)"']
+  total_payments_to_government_col_content text [note: 'From Excel column "Total payments to Government"']
+  Note: '''
+    Purpose: log the reporting companies data from the v2 template without modification.
+    Data source: parsed from source summary data files with the v2 importer.
+    Data quality: see TableGroup notes.
+    '''
+}
+
+Table ledger_v2_1_reporting_companies [headercolor: #24BAB1] { 
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  full_company_name_col_content text [note: 'From Excel column "Full company name"']
+  is_the_company_an_eiti_supporting_company_col_content text [note: 'From Excel column "Is the company an EITI Supporting company?"']
+  company_type_col_content text [note: 'From Excel column "Company type"']
+  company_id_number_col_content text [note: 'From Excel column "Company ID number"']
+  sector_col_content text [note: 'From Excel column "Sector"']
+  commodities_comma_seperated_col_content text [note: 'From Excel column "Commodities (comma-seperated)"']
+  total_payments_to_government_col_content text [note: 'From Excel column "Total payments to Government"']
+  stock_exchange_listing_or_company_website_col_content text [note: 'From Excel column "Stock exchange listing or company website"']
+  audited_financial_statement_col_content text [note: 'From Excel column "Audited financial statement (or balance sheet, cash flows, profit/loss statement if unavailable)"']
+  submitted_eiti_reporting_col_content text [note: 'From Excel column "Submitted EITI reporting?"']
+  adhered_to_national_audit_standards_col_content text [note: 'From Excel column "Adhered to national audit standards?"']
+  adhered_to_msgs_quality_assurance_requirements_col_content text [note: 'From Excel column "Adhered to MSG\'s quality assurance requirements?"']
+  Note: '''
+    Purpose: log the reporting companies data from the v2.1 template without modification.
+    Data source: parsed from source summary data files with the v2.1 importer.
+    Data quality: see TableGroup notes.
+    '''
+}
+
+
+// ----------- REPORTING GOVERNMENT ENTITIES-----------
+
+
+Table ledger_v2_reporting_government_entities [headercolor: #2D6512] {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  full_name_of_agency_col_content text [note: 'From Excel column "Full name of agency"']
+  agency_type_col_content text [note: 'From Excel column "Agency type"']
+  id_number_if_applicable_col_content text [note: 'From Excel column "ID number (if applicable)"']
+  total_reported_col_content text [note: 'From Excel column "Total reported"']
+  Note: '''
+    Purpose: log the reporting government entities data from the v2 template without modification.
+    Data source: parsed from source summary data files with the v2 importer.
+    Data quality: see TableGroup notes.
+    '''
+}
+
+
+Table ledger_v2_1_reporting_government_entities [headercolor: #24BAB1] { 
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  full_name_of_agency_col_content text [note: 'From Excel column "Full name of agency"']
+  agency_type_col_content text [note: 'From Excel column "Agency type"']
+  id_number_if_applicable_col_content text [note: 'From Excel column "ID number (if applicable)"']
+  total_reported_col_content text [note: 'From Excel column "Total reported"']
+  submitted_eiti_reporting_col_content text [note: 'From Excel column "Submitted EITI reporting?"']
+  adheres_to_national_audit_standards_col_content text [note: 'From Excel column "Adheres to national audit standards?"']
+  adhered_to_msgs_quality_assurance_requirements_col_content text [note: 'From Excel column "Adhered to MSG\'s quality assurance requirements?"']
+  
+  Note: '''
+    Purpose: log the reporting government entities data from the v2.1 template without modification.
+    Data source: parsed from source summary data files with the v2.1 importer.
+    Data quality: see TableGroup notes.
+    '''
+}
+
+// ----------- REPORTING PROJECTS-----------
+
+
+Table ledger_v2_reporting_projects [headercolor: #2D6512] {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  full_project_name_col_content text [note: 'From Excel column "Full project name"']
+  legal_agreement_reference_numbers_col_content text [note: 'From Excel column "Legal agreement reference number(s): contract, licence, lease, concession, …"']
+  affiliated_companies_start_with_operator_col_content text [note: 'From Excel column "Affiliated companies, start with Operator"']
+  commodities_one_commodity_row_col_content text [note: 'From Excel column "Commodities (one commodity/row)"']
+  status_col_content text [note: 'From Excel column "Status"']
+  production_volume_col_content text [note: 'From Excel column "Production (volume)"']
+  unit_col_content text [note: 'From Excel column "Unit"']
+  production_value_col_content text [note: 'From Excel column "Production (value)"']
+  currency_col_content text [note: 'From Excel column "Currency"']
+  
+  Note: '''
+    Purpose: log the reporting projects data from the v2 template without modification.
+    Data source: parsed from source summary data files with the v2 importer.
+    Data quality: see TableGroup notes.
+    '''
+}
+
+
+Table ledger_v2_1_reporting_projects [headercolor: #24BAB1] { 
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  full_project_name_col_content text [note: 'From Excel column "Full project name"']
+  legal_agreement_reference_numbers_col_content text [note: 'From Excel column "Legal agreement reference number(s): contract, licence, lease, concession, …"']
+  start_date_col_content text [note: 'From Excel column "Start date"']
+  expiry_date_col_content text [note: 'From Excel column "Expiry date"']
+  affiliated_companies_start_with_operator_col_content text [note: 'From Excel column "Affiliated companies, start with Operator"']
+  commodities_one_commodity_row_col_content text [note: 'From Excel column "Commodities (one commodity/row)"']
+  status_col_content text [note: 'From Excel column "Status"']
+  production_volume_col_content text [note: 'From Excel column "Production (volume)"']
+  unit_col_content text [note: 'From Excel column "Unit"']
+  production_value_col_content text [note: 'From Excel column "Production (value)"']
+  currency_col_content text [note: 'From Excel column "Currency"']
+  ghg_emissions_col_content text [note: 'From Excel column "GHG Emissions"']
+  emissions_unit_col_content text [note: 'From Excel column "Emissions unit"']
+  costs_capex_col_content text [note: 'From Excel column "Costs -Capex-"']
+  costs_opex_col_content text [note: 'From Excel column "Costs -Opex-"']
+  cost_currency_col_content text [note: 'From Excel column "Cost currency"']
+
+  Note: '''
+    Purpose: log the reporting projects data from the v2.1 template without modification.
+    Data source: parsed from source summary data files with the v2.1 importer.
+    Data quality: see TableGroup notes.
+    '''
+}
+
+// ----------- GOVERNMENT REVENUES BY SECTOR & GFS-----------
+
+Table ledger_v1_goverment_revenues [headercolor: #126E7A] {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  gfs_code_col_content text [ref: > metadata_gfs_codes.gfs_code, note: 'From Block A, column B "GFS code"']
+  gfs_type_col_content text [note: 'From Block A, column C']
+  report_inclusion_status_col_content text [note: 'From Block A, column D "Included in EITI Report?"']
+  revenue_stream_name_col_content text [note: 'Excel Block B column E "Name of revenue stream in country"']
+  receiving_gov_agency_col_content text [note: 'Excel Block B column F "Name of revenue stream in country"']
+  revenue_disclosed_col_content text [note: 'Excel Block B column G "Name of revenue stream in country"']
+  reconciled_revenue_value text [note: 'From Block D, "Reconciled revenue streams per company" column for this stream']
+  currency_unit varchar(3) [note: 'Excel cell G3']
+
+  Note: '''
+    Purpose: Logs definitions and aggregate figures for individual revenue streams from the EITI v1 "Government Revenues" sheet (Blocks A, B,D).
+    Data source: V1 API endpoint
+    Data quality: see TableGroup
+    '''
+}
+
+Table ledger_v2_government_revenues [headercolor: #2D6512] {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  gfs_classification_col_content text [ref: > metadata_gfs_codes.gfs_code, note: 'From Excel column F "GFS Classification"']
+  sector_col_content text [note: 'From Excel column G "Sector"']
+  revenue_stream_col_content text [note: 'From Excel column H "Revenue stream name"']
+  government_entity_col_content text [note: 'From Excel column I "Government ent"']
+  revenue_value_col_content text [note: 'From Excel column J "Revenue value"']
+  currency_col_content text [note: 'From Excel column K "Currency"']
+
+  Note: '''
+    Purpose: Logs data rows from the GFS-structured government revenue tables.
+    Data source: parsed from the v2 API endpoint
+    Data quality: see TableGroup notes
+    '''
+}
+
+Table ledger_v2_1_extractives_revenues [headercolor: #24BAB1] { /* TODO DATA: Check if name is correct or mistake */
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // --- Content Columns ---
+  gfs_classification_col_content text [ref: > metadata_gfs_codes.gfs_code, note: 'From Excel column F "GFS Classification"']
+  sector_col_content text [note: 'From Excel column G "Sector"']
+  revenue_stream_col_content text [note: 'From Excel column H "Revenue stream name"']
+  issuing_gov_entity_col_content text [note: 'From Excel column I "Issuing Government entity"']
+  collecting_gov_entity_col_content text [note: 'From Excel column J "Collecting Government entity"']
+  revenue_value_col_content text [note: 'From Excel column K "Revenue value"']
+  currency_col_content text [note: 'From Excel column L "Currency"']
+
+  Note: '''
+    Purpose: Logs data rows from the GFS-structured "Total government revenues from extractive sector" tables.
+    Data source: parsed from source summary data files with the v2.1 importer
+    Data quality: see TableGroup notes
+    '''
+}
+
+
+// ----------- GOVERNMENT REVENUES BY COMPANY & PROJECT-----------
+
+
+Table ledger_v1_company_payments [headercolor: #126E7A] {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+  
+  // --- Payment Details ---
+  label text [note: 'From API field "label"']
+  self_url text [note: 'From API field "self"']
+  type text [note: 'From API field "type"']
+  revenue_value text [note: 'From API field "revenue"']
+  revenue_value_format_fixed text [note: 'From API field "Revenue falue format fixed"']
+  currency text [note: 'From API field "currency"']
+  sector text [note: 'From API field "sector"']
+  levied_on_project text [note: 'From API field "levied_on_project"']
+  government_entity text [note: 'From API field "goverment_entity"']
+  reported_by_project text [note: 'From API field "reported_by_project"']
+  reporting_currency text [note: 'From API field "reporting_currency"']
+  payment_made_in_kind text [note: 'From API field "payment_made_in_kind"']
+  in_kind_volume text [note: 'From API field "in_kind_volume"']
+  unit text [note: 'From API field "unit"']
+  comments text [note: 'From API field "comments"']
+
+  // --- GFS Details ---
+  gfs_id integer [note: 'From API field "gfs.id"']
+  gfs_label text [note: 'From API field "gfs.label"']
+  gfs_self_url text [note: 'From API field "gfs.self"']
+  gfs_code text [note: 'From API field "gfs.code"']
+  gfs_parent text [note: 'From API field "gfs.parent"']
+
+  // --- Organisation Details ---
+  organisation_id integer [note: 'From API field "organisation.id"']
+  organisation_label text [note: 'From API field "organisation.label"']
+  organisation_self_url text [note: 'From API field "organisation.self"']
+  organisation_type text [note: 'From API field "organisation.type"']
+  organisation_summary_data text [note: 'From API field "organisation.summary_data"']
+  organisation_identification text [note: 'From API field "organisation.identification"']
+  organisation_sector text [note: 'From API field "organisation.sector"']
+  organisation_commodities text [note: 'From API field "organisation.commodities"']
+  organisation_agency_type text [note: 'From API field "organisation.agency_type"']
+  organisation_company_type text [note: 'From API field "organisation.company_type"']
+  organisation_stock_exchange_listing text [note: 'From API field "organisation.stock_exchange_listing"']
+  organisation_audited_financial_statement text [note: 'From API field "organisation.audited_financial_state"']
+  
+  // --- Organisation Project Details ---
+  organisation_project_legal_agreement text [note: 'From API field "organisation.project_legal_agreement"']
+  organisation_project_affiliated_companies text [note: 'From API field "organisation.project_affiliated_companies_start"']
+  organisation_project_commodities text [note: 'From API field "organisation.project_commodities"']
+  organisation_project_status text [note: 'From API field "organisation.project_status"']
+  organisation_project_production_volume text [note: 'From API field "organisation.project_production_volume"']
+  organisation_project_unit text [note: 'From API field "organisation.project_unit"']
+  organisation_project_production text [note: 'From API field "organisation.project_production"']
+  organisation_project_currency text [note: 'From API field "organisation.project_currency"']
+  Note: '''
+    Purpose: Logs definitions and aggregate figures for individual revenue streams from the EITI v1 "Government Revenues" sheet (Block C)
+    Data source: V1 API endpoint
+    Data quality: see TableGroup
+    '''
+}
+
+Table ledger_v2_company_data [headercolor: #2D6512] {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // Content columns
+  sector_col_content text [note: 'From Excel column "Sector"']
+  company_col_content text [note: 'From Excel column "Company"']
+  gov_entity_col_content text [note: 'From Excel column "Government entity"']
+  revenue_stream_name_col_content text [note: 'From Excel column "Revenue stream name"']
+  levied_on_project_yn_col_content text [note: 'From Excel column "Levied on project (Y/N)"']
+  reported_by_project_yn_col_content text [note: 'From Excel column "Reported by project (Y/N)"']
+  project_name_col_content text [note: 'From Excel column "Project name"']
+  reporting_currency_col_content text [note: 'From Excel column "Reporting currency"']
+  revenue_value_col_content text [note: 'From Excel column "Revenue value"']
+  payment_made_in_kind_yn_col_content text [note: 'From Excel column "Payment made in-kind (Y/N)"']
+  in_kind_volume_if_applicable_col_content text [note: 'From Excel column "In-kind volume (if applicable)"']
+  unit_if_applicable_col_content text [note: 'From Excel column "Unit (if applicable)"']
+  comments_col_content text [note: 'From Excel column "Comments"']
+
+  Note: '''
+    Purpose: Logs data rows from the company data table.
+    Data source: parsed from source summary data files with the v2 importer
+    Data quality: see TableGroup notes
+    '''
+}
+
+Table ledger_v2_1_government_revenues [headercolor: #24BAB1] { /* TODO DATA: Check if name is correct or mistake */
+  // Common Ledger Columns 
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Main section header, e.g., "EITI Requirement 4.1.d: Full government disclosure"']
+  is_list_item boolean [default: true, not null, note: 'Each data row in this Excel table is considered an item in a list.']
+  instructions_details text 
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+
+  // Content columns
+  sector_col_content text [note: 'From Excel column "Sector"']
+  company_col_content text [note: 'From Excel column "Company"']
+  issuing_gov_entity_col_content text [note: 'From Excel column "Issuing government entity"']
+  revenue_stream_name_col_content text [note: 'From Excel column "Revenue stream name"']
+  levied_on_project_yn_col_content text [note: 'From Excel column "Levied on project (Y/N)"']
+  reported_by_project_yn_col_content text [note: 'From Excel column "Reported by project (Y/N)"']
+  project_name_col_content text [note: 'From Excel column "Project name"']
+  reporting_currency_col_content text [note: 'From Excel column "Reporting currency"']
+  revenue_value_col_content text [note: 'From Excel column "Revenue value"']
+  payment_made_in_kind_yn_col_content text [note: 'From Excel column "Payment made in-kind (Y/N)"']
+  in_kind_volume_if_applicable_col_content text [note: 'From Excel column "In-kind volume (if applicable)"']
+  unit_if_applicable_col_content text [note: 'From Excel column "Unit (if applicable)"']
+  comments_col_content text [note: 'From Excel column "Comments"']
+
+  Note: '''
+    Purpose: Logs data rows from the government revenues table.
+    Data source: parsed from source summary data files with the v2.1 importer
+    Data quality: see TableGroup notes
+    '''
+}
+
+// ----------- ADDITIONAL INFO-----------
+
+
+Table ledger_v2_additional_info [headercolor: #2D6512] {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+  
+  // --- Content Columns ---
+  source_cell_range varchar [not null, note: 'e.g., "A58:F65"']
+  raw_content_as_text text [note: 'The raw text content, concatenated']
+  Note: '''
+    Purpose: identify if additional information or comments were added beside a specific source table
+    Data source: manually added during import
+    Data quality: see TableGroup notes
+    '''
+}
+
+Table ledger_v2_1_additional_info [headercolor: #24BAB1] { 
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  eiti_id_declaration varchar [not null, ref: > metadata_summary_data_files.eiti_id_declaration]
+  template_version varchar(10) [not null, ref: > metadata_template_versions.id]
+  source_excel_sheet_name varchar [not null]
+  source_excel_row_number int [not null]
+  grouping_label_content text [note: 'Stores the text of a section header row if applicable.']
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+  
+  // --- Content Columns ---
+  source_cell_range varchar [not null, note: 'e.g., "A58:F65"']
+  raw_content_as_text text [note: 'The raw text content, concatenated']
+  Note: '''
+    Purpose: identify if additional information or comments were added beside a specific source table
+    Data source: manually added during import
+    Data quality: see TableGroup notes
+    '''
+}
+
+// ----------- COMPANY ASSESSMENT -----------
+
+Table ledger_company_assessments {
+  // --- Standard Ledger Columns ---
+  id integer [pk, increment]
+  assessment_file_id varchar(36) [not null, ref: > metadata_assessment_files.assessment_id, note: 'Links this assessment batch to a file record']
+  
+  // --- Key-Value Content ---
+  company_name_in_source text [not null, note: 'The company name as it appears in the source row, used to group related key-value pairs.']
+  header_col_content text [not null, note: 'The "key": the text from the header column in the Excel file.']
+  value_col_content text [note: 'The "value": the text from the cell for that company and header.']
+  
+  created_at timestamp [default: 'CURRENT_TIMESTAMP', not null]
+  
+  Note: '''
+    Purpose: A raw, "long" format archive of the company assessment data. This flexible structure can handle changes in the source file's columns over time.
+    Data source: Imported directly from the "Company assessment" Excel files.
+    Data quality: Raw, unfiltered data for lineage purposes.
+    '''
+}
+
+
+// ----------- LEDGER END ----------------------------
+
+

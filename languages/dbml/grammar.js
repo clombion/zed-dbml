@@ -15,15 +15,21 @@ module.exports = grammar({
 
   word: $ => $.identifier,
 
+  conflicts: $ => [
+    [$._qualified_identifier]
+  ],
+
   rules: {
     source_file: $ => repeat($._definition),
 
     _definition: $ => choice(
       $.project_definition,
       $.table_definition,
+      $.table_partial_definition,
       $.enum_definition,
       $.ref_definition,
-      $.table_group_definition
+      $.table_group_definition,
+      $.sticky_note_definition
     ),
 
     // === Top Level Definitions ===
@@ -43,6 +49,13 @@ module.exports = grammar({
       'Table',
       field('name', $._qualified_identifier),
       optional(seq('as', field('alias', $.identifier))),
+      optional($.block_settings),
+      field('body', $.table_body)
+    ),
+
+    table_partial_definition: $ => seq(
+      'TablePartial',
+      field('name', $.identifier),
       optional($.block_settings),
       field('body', $.table_body)
     ),
@@ -67,9 +80,15 @@ module.exports = grammar({
     table_group_definition: $ => seq(
       'TableGroup',
       field('name', $.identifier),
+      optional($.block_settings),
       '{',
-      repeat($._identifier),
+      repeat($._table_group_item),
       '}'
+    ),
+
+    _table_group_item: $ => choice(
+      $._identifier,
+      $.note_definition
     ),
 
     // === Table Internals ===
@@ -83,7 +102,14 @@ module.exports = grammar({
     _table_body_item: $ => choice(
       $.column_definition,
       $.indexes_definition,
-      $.note_definition
+      $.checks_definition,
+      $.note_definition,
+      $.partial_injection
+    ),
+
+    partial_injection: $ => seq(
+      '~',
+      field('name', $.identifier)
     ),
 
     column_definition: $ => seq(
@@ -94,7 +120,7 @@ module.exports = grammar({
 
     _column_type: $ => choice(
       $.identifier,
-      $._quoted_string,
+      $.quoted_identifier,
       seq($.identifier, '(', $.number_literal, ')'),
       seq($.identifier, '(', $.number_literal, ',', $.number_literal, ')')
     ),
@@ -121,10 +147,30 @@ module.exports = grammar({
       ')'
     ),
 
+    checks_definition: $ => seq(
+      'checks',
+      '{',
+      repeat($.check_item),
+      '}'
+    ),
+
+    check_item: $ => seq(
+      $.expression_literal,
+      optional($.inline_settings)
+    ),
+
     note_definition: $ => seq(
       'Note',
       ':',
       $._string_literal
+    ),
+
+    sticky_note_definition: $ => seq(
+      'Note',
+      field('name', $.identifier),
+      '{',
+      $._string_literal,
+      '}'
     ),
 
     // === Settings and Values ===
@@ -167,8 +213,19 @@ module.exports = grammar({
       $.expression_literal,
       $.number_literal,
       $.hex_color,
+      $.ref_action,
+      $.identifier,
       'true',
       'false'
+    ),
+
+    // Named rule for ref action keywords (delete/update values)
+    ref_action: $ => choice(
+      'cascade',
+      'restrict',
+      'no action',
+      'set null',
+      'set default'
     ),
 
     // === Relationships (Refs) ===
@@ -180,15 +237,33 @@ module.exports = grammar({
       $._column_ref
     )),
 
-    relationship_body: $ => prec.right(PREC.RELATIONSHIP, seq(
+    relationship_body: $ => seq(
       $._column_ref,
       field('operator', $.relationship_operator),
-      $._column_ref
-    )),
+      $._column_ref,
+      optional(field('settings', $.ref_settings))
+    ),
+
+    ref_settings: $ => seq(
+      '[',
+      commaSep($._setting),
+      ']'
+    ),
 
     relationship_operator: $ => choice('<>', '<', '>', '-'),
 
-    _column_ref: $ => $._qualified_identifier,
+    _column_ref: $ => choice(
+      $._qualified_identifier,
+      $.composite_column_ref
+    ),
+
+    composite_column_ref: $ => seq(
+      $._qualified_identifier,
+      '.',
+      '(',
+      commaSep1(choice($.identifier, $.quoted_identifier)),
+      ')'
+    ),
 
     // === Enum Internals ===
 
@@ -200,13 +275,13 @@ module.exports = grammar({
     // === Lexical Tokens ===
 
     _qualified_identifier: $ => seq(
-      $.identifier,
-      repeat(seq('.', $.identifier))
+      choice($.identifier, $.quoted_identifier),
+      repeat(seq('.', choice($.identifier, $.quoted_identifier)))
     ),
 
     _identifier: $ => choice(
       $.identifier,
-      $._quoted_string
+      $.quoted_identifier
     ),
 
     identifier: $ => /[a-zA-Z_][a-zA-Z0-9_]*/,
@@ -236,7 +311,7 @@ module.exports = grammar({
       "'''"
     ),
 
-    _quoted_string: $ => seq('"', /[^"]*/, '"'),
+    quoted_identifier: $ => seq('"', /[^"]*/, '"'),
 
     expression_literal: $ => seq('`', /[^`]*/, '`'),
 

@@ -1,3 +1,6 @@
+# Generated bindings (not needed for Zed)
+bindings/
+
 # Rust artifacts
 target/
 Cargo.lock

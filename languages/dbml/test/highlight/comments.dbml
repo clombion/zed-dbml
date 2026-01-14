@@ -1,0 +1,11 @@
+// Single line comment
+// <- comment
+
+/* Block comment */
+// <- comment
+
+Table users {
+  // inline comment
+// ^ comment
+  id int
+}

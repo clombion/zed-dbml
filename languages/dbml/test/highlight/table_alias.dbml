@@ -1,0 +1,8 @@
+Table users as U {
+//             ^ variable.parameter
+  id int
+}
+Table orders as O {
+//              ^ variable.parameter
+  user_id int
+}

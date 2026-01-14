@@ -1,0 +1,11 @@
+Table users {
+  is_active bool [default: true]
+//                         ^ boolean
+  is_deleted bool [default: false]
+//                          ^ boolean
+}
+
+Table settings {
+  enabled bool [default: true]
+//                       ^ boolean
+}

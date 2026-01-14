@@ -1,0 +1,13 @@
+Table accounts {
+  age int [check: `age > 0`]
+//         ^ property
+//                ^ string.special
+
+  checks {
+// ^ keyword
+    `balance >= 0` [name: 'positive']
+//  ^ string.special
+//                   ^ property
+//                        ^ string
+  }
+}

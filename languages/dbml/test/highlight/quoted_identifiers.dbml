@@ -1,0 +1,6 @@
+Table "my schema"."my table" {
+//     ^ type.definition
+//                 ^ type.definition
+  "column name" int
+// ^ variable
+}

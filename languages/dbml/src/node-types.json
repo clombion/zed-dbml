@@ -23,19 +23,53 @@
     }
   },
   {
+    "type": "check_item",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression_literal",
+          "named": true
+        },
+        {
+          "type": "inline_settings",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "checks_definition",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "check_item",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "column_definition",
     "named": true,
     "fields": {
       "name": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "\"",
-            "named": false
+            "type": "identifier",
+            "named": true
           },
           {
-            "type": "identifier",
+            "type": "quoted_identifier",
             "named": true
           }
         ]
@@ -44,10 +78,6 @@
         "multiple": true,
         "required": true,
         "types": [
-          {
-            "type": "\"",
-            "named": false
-          },
           {
             "type": "(",
             "named": false
@@ -67,6 +97,10 @@
           {
             "type": "number_literal",
             "named": true
+          },
+          {
+            "type": "quoted_identifier",
+            "named": true
           }
         ]
       }
@@ -83,12 +117,31 @@
     }
   },
   {
+    "type": "composite_column_ref",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "quoted_identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "composite_index",
     "named": true,
     "fields": {},
     "children": {
       "multiple": true,
-      "required": false,
+      "required": true,
       "types": [
         {
           "type": "expression_literal",
@@ -96,6 +149,10 @@
         },
         {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "quoted_identifier",
           "named": true
         }
       ]
@@ -115,6 +172,10 @@
           },
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "quoted_identifier",
             "named": true
           }
         ]
@@ -136,15 +197,15 @@
     "named": true,
     "fields": {
       "name": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "\"",
-            "named": false
+            "type": "identifier",
+            "named": true
           },
           {
-            "type": "identifier",
+            "type": "quoted_identifier",
             "named": true
           }
         ]
@@ -172,7 +233,7 @@
     "fields": {},
     "children": {
       "multiple": true,
-      "required": false,
+      "required": true,
       "types": [
         {
           "type": "composite_index",
@@ -188,6 +249,10 @@
         },
         {
           "type": "inline_settings",
+          "named": true
+        },
+        {
+          "type": "quoted_identifier",
           "named": true
         }
       ]
@@ -225,10 +290,18 @@
     },
     "children": {
       "multiple": true,
-      "required": false,
+      "required": true,
       "types": [
         {
+          "type": "composite_column_ref",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "quoted_identifier",
           "named": true
         }
       ]
@@ -277,19 +350,35 @@
     }
   },
   {
+    "type": "partial_injection",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "project_definition",
     "named": true,
     "fields": {
       "name": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "\"",
-            "named": false
+            "type": "identifier",
+            "named": true
           },
           {
-            "type": "identifier",
+            "type": "quoted_identifier",
             "named": true
           }
         ]
@@ -309,6 +398,16 @@
         }
       ]
     }
+  },
+  {
+    "type": "quoted_identifier",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "ref_action",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "ref_definition",
@@ -337,6 +436,29 @@
     }
   },
   {
+    "type": "ref_settings",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "inline_ref_setting",
+          "named": true
+        },
+        {
+          "type": "setting_keyword",
+          "named": true
+        },
+        {
+          "type": "setting_kv",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "relationship_body",
     "named": true,
     "fields": {
@@ -349,14 +471,32 @@
             "named": true
           }
         ]
+      },
+      "settings": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "ref_settings",
+            "named": true
+          }
+        ]
       }
     },
     "children": {
       "multiple": true,
-      "required": false,
+      "required": true,
       "types": [
         {
+          "type": "composite_column_ref",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "quoted_identifier",
           "named": true
         }
       ]
@@ -400,7 +540,15 @@
           "named": true
         },
         {
+          "type": "identifier",
+          "named": true
+        },
+        {
           "type": "number_literal",
+          "named": true
+        },
+        {
+          "type": "ref_action",
           "named": true
         },
         {
@@ -422,7 +570,6 @@
   {
     "type": "source_file",
     "named": true,
-    "root": true,
     "fields": {},
     "children": {
       "multiple": true,
@@ -441,11 +588,49 @@
           "named": true
         },
         {
+          "type": "sticky_note_definition",
+          "named": true
+        },
+        {
           "type": "table_definition",
           "named": true
         },
         {
           "type": "table_group_definition",
+          "named": true
+        },
+        {
+          "type": "table_partial_definition",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "sticky_note_definition",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "single_quote_string",
+          "named": true
+        },
+        {
+          "type": "triple_quote_string",
           "named": true
         }
       ]
@@ -460,6 +645,10 @@
       "required": false,
       "types": [
         {
+          "type": "checks_definition",
+          "named": true
+        },
+        {
           "type": "column_definition",
           "named": true
         },
@@ -469,6 +658,10 @@
         },
         {
           "type": "note_definition",
+          "named": true
+        },
+        {
+          "type": "partial_injection",
           "named": true
         }
       ]
@@ -509,6 +702,10 @@
           {
             "type": "identifier",
             "named": true
+          },
+          {
+            "type": "quoted_identifier",
+            "named": true
           }
         ]
       }
@@ -544,7 +741,55 @@
       "required": false,
       "types": [
         {
+          "type": "block_settings",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "note_definition",
+          "named": true
+        },
+        {
+          "type": "quoted_identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "table_partial_definition",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "table_body",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "block_settings",
           "named": true
         }
       ]
@@ -628,6 +873,10 @@
     "named": false
   },
   {
+    "type": "TablePartial",
+    "named": false
+  },
+  {
     "type": "[",
     "named": false
   },
@@ -644,9 +893,16 @@
     "named": false
   },
   {
+    "type": "cascade",
+    "named": false
+  },
+  {
+    "type": "checks",
+    "named": false
+  },
+  {
     "type": "comment",
-    "named": true,
-    "extra": true
+    "named": true
   },
   {
     "type": "enum",
@@ -670,6 +926,10 @@
   },
   {
     "type": "indexes",
+    "named": false
+  },
+  {
+    "type": "no action",
     "named": false
   },
   {
@@ -697,6 +957,18 @@
     "named": false
   },
   {
+    "type": "restrict",
+    "named": false
+  },
+  {
+    "type": "set default",
+    "named": false
+  },
+  {
+    "type": "set null",
+    "named": false
+  },
+  {
     "type": "true",
     "named": false
   },
@@ -710,6 +982,10 @@
   },
   {
     "type": "}",
+    "named": false
+  },
+  {
+    "type": "~",
     "named": false
   }
 ]

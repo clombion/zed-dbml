@@ -4,3 +4,5 @@
 /grammars
 *.wasm
 .DS_Store
+grammars/
+extension.wasm

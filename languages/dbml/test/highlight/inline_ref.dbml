@@ -1,0 +1,9 @@
+Table posts {
+  user_id int [ref: > users.id]
+//             ^ keyword
+}
+
+Table comments {
+  post_id int [ref: < posts.id]
+//             ^ keyword
+}

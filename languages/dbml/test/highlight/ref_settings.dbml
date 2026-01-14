@@ -1,0 +1,7 @@
+Ref: posts.user_id > users.id [delete: cascade]
+//                            ^ punctuation
+//                             ^ property
+//                                     ^ keyword
+
+Ref: items.order_id > orders.id [color: #3498db]
+//                                      ^ constant

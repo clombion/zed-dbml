@@ -1,0 +1,39 @@
+Table users {
+// <- keyword
+  id int
+}
+
+Enum status {
+// <- keyword
+  active
+}
+
+enum lowercase_enum {
+// <- keyword
+  value
+}
+
+Ref: a.b > c.d
+// <- keyword
+
+Project myproject {
+// <- keyword
+  database_type: 'PostgreSQL'
+}
+
+TableGroup mygroup {
+// <- keyword
+  users
+}
+
+Table orders {
+  indexes {
+// ^ keyword
+    id
+  }
+}
+
+Table aliased as A {
+//             ^ keyword
+  id int
+}

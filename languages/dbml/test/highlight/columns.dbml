@@ -1,0 +1,11 @@
+Table users {
+  id int
+// ^ variable
+//   ^ type
+  name varchar
+// ^ variable
+//     ^ type
+  email varchar(255)
+// ^ variable
+//      ^ type
+}

@@ -1,0 +1,15 @@
+Note my_note {
+// ^ keyword
+//    ^ type.definition
+  'This is a sticky note'
+// ^ comment.doc
+}
+
+Note design {
+// ^ keyword
+//    ^ type.definition
+  '''
+// ^ comment.doc
+  Multi-line content
+  '''
+}

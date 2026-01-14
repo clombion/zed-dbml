@@ -1,0 +1,12 @@
+TablePartial timestamps {
+// ^ keyword
+//           ^ type.definition
+  created_at timestamp
+}
+
+Table users {
+  id int
+  ~timestamps
+//^ operator
+// ^ type
+}

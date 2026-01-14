@@ -1,0 +1,15 @@
+Table users {
+  created_at timestamp
+
+  indexes {
+    `date(created_at)`
+//  ^ string.special
+    `lower(email)`
+//  ^ string.special
+  }
+}
+
+Table orders {
+  id int [default: `now()`]
+//                 ^ string.special
+}

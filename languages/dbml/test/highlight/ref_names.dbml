@@ -1,0 +1,5 @@
+Ref user_posts: posts.user_id > users.id
+//   ^ type.definition
+
+Ref order_items: items.order_id > orders.id
+//   ^ type.definition

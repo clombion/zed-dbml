@@ -1,0 +1,15 @@
+Enum status {
+  pending
+// ^ constant
+  active
+// ^ constant
+  deleted
+// ^ constant
+}
+
+enum priority {
+  low [note: 'lowest']
+// ^ constant
+  high
+// ^ constant
+}

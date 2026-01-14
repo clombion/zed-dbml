@@ -1,0 +1,9 @@
+Table users [headercolor: #3498db] {
+//                        ^ constant
+  id int
+}
+
+Table orders [headercolor: #FF5733] {
+//                         ^ constant
+  id int
+}

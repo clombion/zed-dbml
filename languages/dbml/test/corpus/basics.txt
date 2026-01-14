@@ -32,6 +32,44 @@ Table users {
           (setting_keyword))))))
 
 ==================
+Table with alias
+==================
+
+Table users as U {
+  id int
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    alias: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)))))
+
+==================
+Table with schema qualifier
+==================
+
+Table public.users {
+  id int
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)))))
+
+==================
 Comment
 ==================
 
@@ -39,13 +77,28 @@ Comment
 
 ---
 
-(source_file (comment))
+(source_file
+  (comment))
+
+==================
+Block comment
+==================
+
+/* block comment */
+
+---
+
+(source_file
+  (comment))
 
 ==================
 Short Ref
 ==================
+
 Ref: posts.user_id > users.id
+
 ---
+
 (source_file
   (ref_definition
     body: (relationship_body
@@ -54,3 +107,1347 @@ Ref: posts.user_id > users.id
       operator: (relationship_operator)
       (identifier)
       (identifier))))
+
+==================
+Named Ref
+==================
+
+Ref user_posts: posts.user_id > users.id
+
+---
+
+(source_file
+  (ref_definition
+    name: (identifier)
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier))))
+
+==================
+Ref with braces
+==================
+
+Ref {
+  posts.user_id > users.id
+}
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier))))
+
+==================
+Project definition
+==================
+
+Project test {
+  database_type: 'SQLite'
+  Note: 'simple note'
+}
+
+---
+
+(source_file
+  (project_definition
+    name: (identifier)
+    (setting_kv
+      key: (identifier)
+      (single_quote_string))
+    (note_definition
+      (single_quote_string))))
+
+==================
+Enum definition
+==================
+
+Enum status {
+  pending
+  active
+  deleted
+}
+
+---
+
+(source_file
+  (enum_definition
+    name: (identifier)
+    (enum_value
+      name: (identifier))
+    (enum_value
+      name: (identifier))
+    (enum_value
+      name: (identifier))))
+
+==================
+Enum with settings
+==================
+
+enum status {
+  pending [note: 'waiting']
+  active
+}
+
+---
+
+(source_file
+  (enum_definition
+    name: (identifier)
+    (enum_value
+      name: (identifier)
+      (inline_settings
+        (setting_kv
+          key: (identifier)
+          (single_quote_string))))
+    (enum_value
+      name: (identifier))))
+
+==================
+TableGroup
+==================
+
+TableGroup ecommerce {
+  users
+  orders
+  products
+}
+
+---
+
+(source_file
+  (table_group_definition
+    name: (identifier)
+    (identifier)
+    (identifier)
+    (identifier)))
+
+==================
+Column with inline ref
+==================
+
+Table posts {
+  user_id int [ref: > users.id]
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (inline_ref_setting
+            operator: (relationship_operator)
+            (identifier)
+            (identifier)))))))
+
+==================
+Column with multiple settings
+==================
+
+Table users {
+  id int [pk, increment]
+  email varchar [unique, not null]
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_keyword)
+          (setting_keyword)))
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_keyword)
+          (setting_keyword))))))
+
+==================
+Column with note
+==================
+
+Table users {
+  id int [pk, note: 'Primary key']
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_keyword)
+          (setting_kv
+            key: (identifier)
+            (single_quote_string)))))))
+
+==================
+Indexes definition
+==================
+
+Table users {
+  id int
+  email varchar
+
+  indexes {
+    id
+    email [unique]
+  }
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (indexes_definition
+        (index_item
+          (identifier))
+        (index_item
+          (identifier)
+          (inline_settings
+            (setting_keyword)))))))
+
+==================
+Composite index
+==================
+
+Table users {
+  id int
+  first_name varchar
+  last_name varchar
+
+  indexes {
+    (first_name, last_name)
+  }
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (indexes_definition
+        (index_item
+          (composite_index
+            (identifier)
+            (identifier)))))))
+
+==================
+Expression index
+==================
+
+Table users {
+  created_at timestamp
+
+  indexes {
+    `date(created_at)`
+  }
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (indexes_definition
+        (index_item
+          (expression_literal))))))
+
+==================
+Column type with size
+==================
+
+Table users {
+  name varchar(255)
+  price decimal(10, 2)
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        type: (number_literal))
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        type: (number_literal)
+        type: (number_literal)))))
+
+==================
+Quoted column name
+==================
+
+Table users {
+  "user id" int
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (quoted_identifier)
+        type: (identifier)))))
+
+==================
+Table with block settings
+==================
+
+Table users [headercolor: #3498db] {
+  id int
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    (block_settings
+      (setting_kv
+        key: (identifier)
+        (hex_color)))
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)))))
+
+==================
+Note with triple quotes
+==================
+
+Table users {
+  id int
+
+  Note: '''
+    Multi-line
+    note here
+  '''
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (note_definition
+        (triple_quote_string)))))
+
+==================
+Boolean setting values
+==================
+
+Table users {
+  id int [active: true]
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_kv
+            key: (identifier)))))))
+
+==================
+All relationship operators
+==================
+
+Ref: a.id < b.id
+Ref: a.id > b.id
+Ref: a.id - b.id
+Ref: a.id <> b.id
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier)))
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier)))
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier)))
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier))))
+
+==================
+Default value setting
+==================
+
+Table users {
+  status varchar [default: 'active']
+  count int [default: 0]
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_kv
+            key: (identifier)
+            (single_quote_string))))
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_kv
+            key: (identifier)
+            (number_literal)))))))
+
+==================
+Index with name setting
+==================
+
+Table users {
+  id int
+  email varchar
+
+  indexes {
+    email [name: 'idx_email', unique]
+  }
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (indexes_definition
+        (index_item
+          (identifier)
+          (inline_settings
+            (setting_kv
+              key: (identifier)
+              (single_quote_string))
+            (setting_keyword)))))))
+
+==================
+Index with type setting
+==================
+
+Table users {
+  id int
+
+  indexes {
+    id [type: 'btree']
+  }
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (indexes_definition
+        (index_item
+          (identifier)
+          (inline_settings
+            (setting_kv
+              key: (identifier)
+              (single_quote_string))))))))
+
+==================
+Escaped string
+==================
+
+Table users {
+  name varchar [note: 'It\'s escaped']
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_kv
+            key: (identifier)
+            (single_quote_string)))))))
+
+==================
+Negative number
+==================
+
+Table products {
+  discount decimal(5, 2) [default: -10]
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        type: (number_literal)
+        type: (number_literal)
+        (inline_settings
+          (setting_kv
+            key: (identifier)
+            (number_literal)))))))
+
+==================
+Decimal number
+==================
+
+Table products {
+  price decimal [default: 99.99]
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_kv
+            key: (identifier)
+            (number_literal)))))))
+
+==================
+Multiple inline refs
+==================
+
+Table posts {
+  user_id int [ref: > users.id, ref: > authors.id]
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (inline_ref_setting
+            operator: (relationship_operator)
+            (identifier)
+            (identifier))
+          (inline_ref_setting
+            operator: (relationship_operator)
+            (identifier)
+            (identifier)))))))
+
+==================
+Composite index with settings
+==================
+
+Table users {
+  first_name varchar
+  last_name varchar
+
+  indexes {
+    (first_name, last_name) [unique, name: 'idx_fullname']
+  }
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (indexes_definition
+        (index_item
+          (composite_index
+            (identifier)
+            (identifier))
+          (inline_settings
+            (setting_keyword)
+            (setting_kv
+              key: (identifier)
+              (single_quote_string))))))))
+
+==================
+Mixed composite index with expression
+==================
+
+Table users {
+  created_at timestamp
+  status varchar
+
+  indexes {
+    (status, `date(created_at)`) [name: 'idx_status_date']
+  }
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (indexes_definition
+        (index_item
+          (composite_index
+            (identifier)
+            (expression_literal))
+          (inline_settings
+            (setting_kv
+              key: (identifier)
+              (single_quote_string))))))))
+
+==================
+Three-part qualified identifier
+==================
+
+Ref: catalog.schema.table.col > other.id
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier))))
+
+==================
+Ref with delete setting
+==================
+
+Ref: posts.user_id > users.id [delete: cascade]
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier)
+      settings: (ref_settings
+        (setting_kv
+          key: (identifier)
+          (ref_action))))))
+
+==================
+Ref with multiple settings
+==================
+
+Ref: orders.user_id > users.id [delete: cascade, update: no action]
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier)
+      settings: (ref_settings
+        (setting_kv
+          key: (identifier)
+          (ref_action))
+        (setting_kv
+          key: (identifier)
+          (ref_action))))))
+
+==================
+Ref with color setting
+==================
+
+Ref: posts.user_id > users.id [color: #3498db]
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier)
+      settings: (ref_settings
+        (setting_kv
+          key: (identifier)
+          (hex_color))))))
+
+==================
+Ref with all settings
+==================
+
+Ref: posts.user_id > users.id [delete: cascade, update: set null, color: #FF5733]
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier)
+      settings: (ref_settings
+        (setting_kv
+          key: (identifier)
+          (ref_action))
+        (setting_kv
+          key: (identifier)
+          (ref_action))
+        (setting_kv
+          key: (identifier)
+          (hex_color))))))
+
+==================
+Named ref with settings
+==================
+
+Ref fk_posts_user: posts.user_id > users.id [delete: cascade]
+
+---
+
+(source_file
+  (ref_definition
+    name: (identifier)
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier)
+      settings: (ref_settings
+        (setting_kv
+          key: (identifier)
+          (ref_action))))))
+
+==================
+Ref block with settings
+==================
+
+Ref {
+  posts.user_id > users.id [delete: restrict]
+}
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier)
+      settings: (ref_settings
+        (setting_kv
+          key: (identifier)
+          (ref_action))))))
+
+==================
+Column with check constraint
+==================
+
+Table users {
+  age int [check: `age > 0`]
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_kv
+            key: (identifier)
+            (expression_literal)))))))
+
+==================
+Column with multiple settings including check
+==================
+
+Table products {
+  price decimal [not null, check: `price >= 0`]
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_keyword)
+          (setting_kv
+            key: (identifier)
+            (expression_literal)))))))
+
+==================
+Table-level checks block
+==================
+
+Table accounts {
+  wealth int
+  debt int
+  
+  checks {
+    `debt + wealth >= 0` [name: 'positive_balance']
+  }
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (checks_definition
+        (check_item
+          (expression_literal)
+          (inline_settings
+            (setting_kv
+              key: (identifier)
+              (single_quote_string))))))))
+
+==================
+Table-level checks block with multiple checks
+==================
+
+Table orders {
+  amount int
+  discount int
+  
+  checks {
+    `amount > 0`
+    `discount >= 0` [name: 'non_negative_discount']
+    `discount <= amount`
+  }
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (checks_definition
+        (check_item
+          (expression_literal))
+        (check_item
+          (expression_literal)
+          (inline_settings
+            (setting_kv
+              key: (identifier)
+              (single_quote_string))))
+        (check_item
+          (expression_literal))))))
+
+==================
+TableGroup with settings
+==================
+
+TableGroup views [color: #6724BB] {
+  view_users
+  view_orders
+}
+
+---
+
+(source_file
+  (table_group_definition
+    name: (identifier)
+    (block_settings
+      (setting_kv
+        key: (identifier)
+        (hex_color)))
+    (identifier)
+    (identifier)))
+
+==================
+TableGroup with note
+==================
+
+TableGroup core {
+  users
+  orders
+  Note: 'Core business tables'
+}
+
+---
+
+(source_file
+  (table_group_definition
+    name: (identifier)
+    (identifier)
+    (identifier)
+    (note_definition
+      (single_quote_string))))
+
+==================
+TableGroup with settings and note
+==================
+
+TableGroup metadata [color: #E4A62E] {
+  meta_sources
+  Note: '''
+    Metadata tables for tracking data lineage.
+  '''
+}
+
+---
+
+(source_file
+  (table_group_definition
+    name: (identifier)
+    (block_settings
+      (setting_kv
+        key: (identifier)
+        (hex_color)))
+    (identifier)
+    (note_definition
+      (triple_quote_string))))
+
+==================
+Quoted schema name
+==================
+
+Table "my schema".users {
+  id int
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (quoted_identifier)
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)))))
+
+==================
+Quoted table name
+==================
+
+Table public."my table" {
+  id int
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    name: (quoted_identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)))))
+
+==================
+Both quoted in qualified identifier
+==================
+
+Table "my schema"."my table" {
+  id int
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (quoted_identifier)
+    name: (quoted_identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)))))
+
+==================
+Ref with quoted identifiers
+==================
+
+Ref: "my schema"."my table".col > public.users.id
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (quoted_identifier)
+      (quoted_identifier)
+      (identifier)
+      operator: (relationship_operator)
+      (identifier)
+      (identifier)
+      (identifier))))
+
+==================
+Composite foreign key
+==================
+
+Ref: merchant_periods.(merchant_id, country_code) > merchants.(id, country_code)
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (composite_column_ref
+        (identifier)
+        (identifier)
+        (identifier))
+      operator: (relationship_operator)
+      (composite_column_ref
+        (identifier)
+        (identifier)
+        (identifier)))))
+
+==================
+Composite foreign key with schema
+==================
+
+Ref: public.orders.(user_id, product_id) > public.order_items.(user, product)
+
+---
+
+(source_file
+  (ref_definition
+    body: (relationship_body
+      (composite_column_ref
+        (identifier)
+        (identifier)
+        (identifier)
+        (identifier))
+      operator: (relationship_operator)
+      (composite_column_ref
+        (identifier)
+        (identifier)
+        (identifier)
+        (identifier)))))
+
+==================
+Named composite ref with settings
+==================
+
+Ref fk_composite: table1.(a, b) > table2.(x, y) [delete: cascade]
+
+---
+
+(source_file
+  (ref_definition
+    name: (identifier)
+    body: (relationship_body
+      (composite_column_ref
+        (identifier)
+        (identifier)
+        (identifier))
+      operator: (relationship_operator)
+      (composite_column_ref
+        (identifier)
+        (identifier)
+        (identifier))
+      settings: (ref_settings
+        (setting_kv
+          key: (identifier)
+          (ref_action))))))
+
+==================
+Sticky note single line
+==================
+
+Note my_note {
+  'This is a sticky note'
+}
+
+---
+
+(source_file
+  (sticky_note_definition
+    name: (identifier)
+    (single_quote_string)))
+
+==================
+Sticky note multi-line
+==================
+
+Note design_notes {
+  '''
+  This is a multi-line
+  sticky note for the diagram
+  '''
+}
+
+---
+
+(source_file
+  (sticky_note_definition
+    name: (identifier)
+    (triple_quote_string)))
+
+==================
+TablePartial definition
+==================
+
+TablePartial timestamps {
+  created_at timestamp
+  updated_at timestamp
+}
+
+---
+
+(source_file
+  (table_partial_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier)))))
+
+==================
+TablePartial with settings
+==================
+
+TablePartial audit [note: 'Audit fields'] {
+  created_by int
+  modified_by int
+}
+
+---
+
+(source_file
+  (table_partial_definition
+    name: (identifier)
+    (block_settings
+      (setting_kv
+        key: (identifier)
+        (single_quote_string)))
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier)))))
+
+==================
+TablePartial with indexes
+==================
+
+TablePartial searchable {
+  name varchar
+
+  indexes {
+    name
+  }
+}
+
+---
+
+(source_file
+  (table_partial_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier))
+      (indexes_definition
+        (index_item
+          (identifier))))))
+
+==================
+Partial injection in table
+==================
+
+Table users {
+  id int [pk]
+  ~timestamps
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_keyword)))
+      (partial_injection
+        name: (identifier)))))
+
+==================
+Multiple partial injections
+==================
+
+Table orders {
+  id int [pk]
+  ~timestamps
+  ~audit
+  total decimal
+}
+
+---
+
+(source_file
+  (table_definition
+    name: (identifier)
+    body: (table_body
+      (column_definition
+        name: (identifier)
+        type: (identifier)
+        (inline_settings
+          (setting_keyword)))
+      (partial_injection
+        name: (identifier))
+      (partial_injection
+        name: (identifier))
+      (column_definition
+        name: (identifier)
+        type: (identifier)))))

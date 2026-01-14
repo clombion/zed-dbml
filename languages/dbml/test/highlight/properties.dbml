@@ -1,0 +1,14 @@
+Project test {
+  database_type: 'PostgreSQL'
+// ^ property
+}
+
+Table users {
+  id int [note: 'pk']
+//        ^ property
+}
+
+Table orders [headercolor: #3498db] {
+//            ^ property
+  id int
+}

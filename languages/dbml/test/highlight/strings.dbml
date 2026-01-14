@@ -1,0 +1,9 @@
+Project test {
+  database_type: 'PostgreSQL'
+//               ^ string
+}
+
+Table users {
+  id int [note: 'Primary key']
+//              ^ string
+}

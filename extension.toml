@@ -2,7 +2,7 @@
 
 id = "dbml"
 name = "DBML"
-version = "0.1.0"
+version = "0.2.0"
 schema_version = 1
 authors = ["clombion"]
 description = "Full-featured DBML language support with syntax highlighting and LSP."
@@ -12,7 +12,7 @@ repository = "https://github.com/clombion/zed-dbml"
 [grammars.dbml]
 repository = "https://github.com/clombion/zed-dbml"
 path = "languages/dbml"
-rev = "6199311eb6cc7af11b28a0766d9f64cb04452fd4"
+rev = "955588f0c64c214ce4253e79c07c75cc4c06cc1c"
 
 # language server
 [language_servers.dbml-language-server]
