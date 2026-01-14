@@ -12,7 +12,7 @@ repository = "https://github.com/clombion/zed-dbml"
 [grammars.dbml]
 repository = "https://github.com/clombion/zed-dbml"
 path = "languages/dbml"
-rev = "955588f0c64c214ce4253e79c07c75cc4c06cc1c"
+rev = "a2f3b18bad5d621fb3e4368c74476e16a23625c6"
 
 # language server
 [language_servers.dbml-language-server]
